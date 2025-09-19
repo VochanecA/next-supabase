@@ -1,16 +1,19 @@
-// src/lib/ai.ts
-import { getEnvVariable } from './env';
+// lib/ai.ts
+import { createClient as createBrowserClient } from './supabase/client';
+import { createClient as createServerClient } from '../server'; // adjust import path
+import type { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
+// import type { Database } from '@/lib/types'; // <-- use if you have supabase types
 
-// Define supported AI model providers
+// ---------------------------
+// Types
+// ---------------------------
 export type AIModelProvider = 'openrouter' | 'anthropic' | 'openai' | 'gemini' | 'deepseek';
 
-// Define AI message structure
 export interface AIMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
 }
 
-// Define AI request structure
 export interface AIRequest {
   messages: AIMessage[];
   maxTokens?: number;
@@ -20,43 +23,23 @@ export interface AIRequest {
   stream?: boolean;
 }
 
-// Define AI response structure
 export interface AIResponse {
   role: 'assistant';
   content: string;
 }
 
-// Define provider configuration
 interface ProviderConfig {
   baseUrl: string;
-  apiKey?: string;
 }
 
-// Centralized provider configurations
 const PROVIDER_CONFIG: Record<AIModelProvider, ProviderConfig> = {
-  openai: {
-    baseUrl: 'https://api.openai.com/v1',
-    apiKey: getEnvVariable('OPENAI_API_KEY'),
-  },
-  anthropic: {
-    baseUrl: 'https://api.anthropic.com/v1',
-    apiKey: getEnvVariable('ANTHROPIC_API_KEY'),
-  },
-  gemini: {
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    apiKey: getEnvVariable('GEMINI_API_KEY'),
-  },
-  openrouter: {
-    baseUrl: 'https://openrouter.ai/api/v1',
-    apiKey: getEnvVariable('OPENROUTER_API_KEY'),
-  },
-  deepseek: {
-    baseUrl: 'https://api.deepseek.com/v1',
-    apiKey: getEnvVariable('DEEPSEEK_API_KEY'),
-  },
+  openai: { baseUrl: 'https://api.openai.com/v1' },
+  anthropic: { baseUrl: 'https://api.anthropic.com/v1' },
+  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
+  openrouter: { baseUrl: 'https://openrouter.ai/api/v1' },
+  deepseek: { baseUrl: 'https://api.deepseek.com/v1' },
 };
 
-// Default models for each provider
 const DEFAULT_MODELS: Record<AIModelProvider, string> = {
   openai: 'gpt-4o-mini',
   anthropic: 'claude-3-5-sonnet-20240620',
@@ -65,7 +48,35 @@ const DEFAULT_MODELS: Record<AIModelProvider, string> = {
   deepseek: 'deepseek-chat',
 };
 
-// Define expected response shapes for different providers
+// ---------------------------
+// Supabase helper: get API key
+// ---------------------------
+async function getApiKey(
+  provider: AIModelProvider,
+  isServer = false,
+): Promise<string> {
+  let supabase: SupabaseClient;
+
+  if (isServer) {
+    supabase = await createServerClient();
+  } else {
+    supabase = createBrowserClient();
+  }
+
+  // Example: table `ai_keys` with { provider, key }
+  const { data, error }: { data: { key: string } | null; error: PostgrestError | null } =
+    await supabase.from('ai_keys').select('key').eq('provider', provider).single();
+
+  if (error || !data?.key) {
+    throw new Error(`Missing API key for provider ${provider}: ${error?.message ?? 'not found'}`);
+  }
+
+  return data.key;
+}
+
+// ---------------------------
+// Provider response types
+// ---------------------------
 interface OpenAIResponse {
   choices: Array<{ message: { content: string } }>;
 }
@@ -80,27 +91,24 @@ interface GeminiResponse {
 
 type AIProviderResponse = OpenAIResponse | AnthropicResponse | GeminiResponse;
 
-export async function callAI(req: AIRequest): Promise<AIResponse> {
+// ---------------------------
+// Main function
+// ---------------------------
+export async function callAI(req: AIRequest, isServer = false): Promise<AIResponse> {
   const provider: AIModelProvider = req.provider ?? 'deepseek';
-  const { baseUrl, apiKey } = PROVIDER_CONFIG[provider];
+  const { baseUrl } = PROVIDER_CONFIG[provider];
 
-  if (!apiKey) {
-    throw new Error(`Missing API key for provider: ${provider}`);
-  }
+  const apiKey = await getApiKey(provider, isServer);
 
   const model = req.model ?? DEFAULT_MODELS[provider];
 
-  // Construct request body
   const body =
     provider === 'anthropic'
       ? {
           model,
           max_tokens: req.maxTokens ?? 800,
           temperature: req.temperature ?? 0.7,
-          messages: req.messages.map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
+          messages: req.messages.map((m) => ({ role: m.role, content: m.content })),
         }
       : {
           model,
@@ -110,7 +118,6 @@ export async function callAI(req: AIRequest): Promise<AIResponse> {
           stream: req.stream ?? false,
         };
 
-  // Construct headers as Record<string, string> to match HeadersInit
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
@@ -124,16 +131,14 @@ export async function callAI(req: AIRequest): Promise<AIResponse> {
     headers['X-Title'] = 'Your App Name';
   }
 
-  // Construct URL
   const url =
     provider === 'gemini'
       ? `${baseUrl}/models/${model}:generateContent?key=${apiKey}`
       : `${baseUrl}/chat/completions`;
 
-  // Make API request
   const response = await fetch(url, {
     method: 'POST',
-    headers, // Now headers is guaranteed to be Record<string, string>
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -144,15 +149,16 @@ export async function callAI(req: AIRequest): Promise<AIResponse> {
 
   const data = (await response.json()) as AIProviderResponse;
 
-  // Extract content based on provider response format
-  let content: string;
-
-  if (provider === 'anthropic') {
-    content = (data as AnthropicResponse).content?.[0]?.text;
-  } else if (provider === 'gemini') {
-    content = (data as GeminiResponse).candidates?.[0]?.content?.parts?.[0]?.text;
-  } else {
-    content = (data as OpenAIResponse).choices?.[0]?.message?.content;
+  let content: string | undefined;
+  switch (provider) {
+    case 'anthropic':
+      content = (data as AnthropicResponse).content?.[0]?.text;
+      break;
+    case 'gemini':
+      content = (data as GeminiResponse).candidates?.[0]?.content?.parts?.[0]?.text;
+      break;
+    default:
+      content = (data as OpenAIResponse).choices?.[0]?.message?.content;
   }
 
   if (!content) {
