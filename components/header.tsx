@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useState, type FC, useEffect } from "react";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Menu, X, Bell, User as UserIcon } from "lucide-react"; // 👈 renamed icon
+import { Menu, X, Bell, User as UserIcon } from "lucide-react"; // Icon renamed
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
-import type { User as SupabaseUser } from "@supabase/supabase-js"; // 👈 alias type
+import type { User as SupabaseUser } from "@supabase/supabase-js"; // Type alias
 
 const navItems = ["Why", "About", "Features", "Pricing"];
 
@@ -15,21 +15,26 @@ export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
 
-  const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
-
   useEffect(() => {
     const supabase = createClient();
 
     const fetchUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      setUser(data.user ?? null);
+      try {
+        const { data } = await supabase.auth.getUser();
+        setUser(data.user ?? null);
+      } catch (err) {
+        console.error("Failed to fetch Supabase user:", err);
+      }
     };
 
     fetchUser();
   }, []);
 
+  const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
+
   return (
     <>
+      {/* Header */}
       <header className="w-full border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md h-16 flex items-center justify-center sticky top-0 z-50">
         <div className="w-full max-w-6xl flex justify-between items-center px-6">
           {/* Logo */}
@@ -83,17 +88,13 @@ export const Header: FC = () => {
               exit={{ rotate: 90, opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              {isMobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
+              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </motion.div>
           </motion.button>
         </div>
       </header>
 
-      {/* Mobile Menu with animation */}
+      {/* Mobile Menu */}
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
@@ -104,7 +105,7 @@ export const Header: FC = () => {
             className="md:hidden fixed inset-0 z-40 bg-white dark:bg-gray-900 pt-16"
           >
             <div className="border-b border-gray-200 dark:border-gray-700 p-6">
-              {/* User email + logout section */}
+              {/* User info */}
               <div className="flex items-center gap-3 mb-6 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                 <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
                   <UserIcon className="w-5 h-5 text-orange-500" />
