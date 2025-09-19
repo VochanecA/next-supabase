@@ -9,7 +9,7 @@ import { ThemeSwitcher } from "@/components/theme-switcher";
 import { Menu, X, Bell, User } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-const navItems = ["Home", "About", "Features", "Pricing"];
+const navItems = ["Why", "About", "Features", "Pricing"];
 
 export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
