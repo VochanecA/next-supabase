@@ -1,12 +1,6 @@
 // lib/ai.ts
-import { createClient as createBrowserClient } from './supabase/client';
-import { createClient as createServerClient } from '../server'; // adjust import path
-import type { SupabaseClient, PostgrestError } from '@supabase/supabase-js';
-// import type { Database } from '@/lib/types'; // <-- use if you have supabase types
+import { getEnvVariable } from './env';
 
-// ---------------------------
-// Types
-// ---------------------------
 export type AIModelProvider = 'openrouter' | 'anthropic' | 'openai' | 'gemini' | 'deepseek';
 
 export interface AIMessage {
@@ -30,14 +24,30 @@ export interface AIResponse {
 
 interface ProviderConfig {
   baseUrl: string;
+  apiKey: string;
 }
 
 const PROVIDER_CONFIG: Record<AIModelProvider, ProviderConfig> = {
-  openai: { baseUrl: 'https://api.openai.com/v1' },
-  anthropic: { baseUrl: 'https://api.anthropic.com/v1' },
-  gemini: { baseUrl: 'https://generativelanguage.googleapis.com/v1beta' },
-  openrouter: { baseUrl: 'https://openrouter.ai/api/v1' },
-  deepseek: { baseUrl: 'https://api.deepseek.com/v1' },
+  openai: {
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: getEnvVariable('OPENAI_API_KEY'),
+  },
+  anthropic: {
+    baseUrl: 'https://api.anthropic.com/v1',
+    apiKey: getEnvVariable('ANTHROPIC_API_KEY'),
+  },
+  gemini: {
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
+    apiKey: getEnvVariable('GEMINI_API_KEY'),
+  },
+  openrouter: {
+    baseUrl: 'https://openrouter.ai/api/v1',
+    apiKey: getEnvVariable('OPENROUTER_API_KEY'),
+  },
+  deepseek: {
+    baseUrl: 'https://api.deepseek.com/v1',
+    apiKey: getEnvVariable('DEEPSEEK_API_KEY'),
+  },
 };
 
 const DEFAULT_MODELS: Record<AIModelProvider, string> = {
@@ -47,32 +57,6 @@ const DEFAULT_MODELS: Record<AIModelProvider, string> = {
   openrouter: 'openai/gpt-4o-mini',
   deepseek: 'deepseek-chat',
 };
-
-// ---------------------------
-// Supabase helper: get API key
-// ---------------------------
-async function getApiKey(
-  provider: AIModelProvider,
-  isServer = false,
-): Promise<string> {
-  let supabase: SupabaseClient;
-
-  if (isServer) {
-    supabase = await createServerClient();
-  } else {
-    supabase = createBrowserClient();
-  }
-
-  // Example: table `ai_keys` with { provider, key }
-  const { data, error }: { data: { key: string } | null; error: PostgrestError | null } =
-    await supabase.from('ai_keys').select('key').eq('provider', provider).single();
-
-  if (error || !data?.key) {
-    throw new Error(`Missing API key for provider ${provider}: ${error?.message ?? 'not found'}`);
-  }
-
-  return data.key;
-}
 
 // ---------------------------
 // Provider response types
@@ -94,11 +78,9 @@ type AIProviderResponse = OpenAIResponse | AnthropicResponse | GeminiResponse;
 // ---------------------------
 // Main function
 // ---------------------------
-export async function callAI(req: AIRequest, isServer = false): Promise<AIResponse> {
+export async function callAI(req: AIRequest): Promise<AIResponse> {
   const provider: AIModelProvider = req.provider ?? 'deepseek';
-  const { baseUrl } = PROVIDER_CONFIG[provider];
-
-  const apiKey = await getApiKey(provider, isServer);
+  const { baseUrl, apiKey } = PROVIDER_CONFIG[provider];
 
   const model = req.model ?? DEFAULT_MODELS[provider];
 
@@ -127,8 +109,8 @@ export async function callAI(req: AIRequest, isServer = false): Promise<AIRespon
   }
 
   if (provider === 'openrouter') {
-    headers['HTTP-Referer'] = 'https://your-app.com';
-    headers['X-Title'] = 'Your App Name';
+    headers['HTTP-Referer'] = 'https://your-app.com'; // 🔄 replace with your domain
+    headers['X-Title'] = 'Your App Name'; // 🔄 replace with app name
   }
 
   const url =
