@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Home, User, Settings, Bell, Activity } from "lucide-react";
+import { Home, User, Settings, Bell, Activity, TargetIcon } from "lucide-react";
 import { JSX } from "react";
 
 interface SidebarLink {
@@ -15,6 +15,7 @@ export function Sidebar(): JSX.Element {
     { href: "/", label: "Home", icon: <Home className="w-5 h-5" /> },
     { href: "/protected/notifications", label: "Notifications", icon: <Bell className="w-5 h-5" /> },
     { href: "/protected/analytics", label: "Analytics", icon: <Activity className="w-5 h-5" /> },
+      { href: "/protected/ai", label: "Web App", icon: <TargetIcon className="w-5 h-5 text-orange-500 font-semibold" /> },
   ];
 
   const accountLinks: SidebarLink[] = [
