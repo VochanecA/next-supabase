@@ -29,7 +29,7 @@ export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { theme } = useTheme();
 
   const supabase = createClient();
 
@@ -87,8 +87,6 @@ export const Header: FC = () => {
   }, [fetchUserAndSubscription, supabase.auth]);
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
-  const toggleTheme = (): void =>
-    setTheme(theme === "dark" ? "light" : "dark");
 
   return (
     <>
