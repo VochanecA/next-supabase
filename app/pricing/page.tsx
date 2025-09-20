@@ -15,18 +15,14 @@ interface Plan {
   popular?: boolean
 }
 
-interface PricingCardProps {
-  plan: Plan
-}
-
-export function PricingCard({ plan }: PricingCardProps) {
+// Move PricingCard **inside the file**, do NOT export
+function PricingCard({ plan }: { plan: Plan }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
   const handleCheckout = async () => {
     setLoading(true)
     setError('')
-
     try {
       const res = await fetch('/checkout', {
         method: 'POST',
@@ -35,9 +31,7 @@ export function PricingCard({ plan }: PricingCardProps) {
           product_cart: [{ product_id: plan.priceId, quantity: 1 }],
         }),
       })
-
       const data = await res.json()
-
       if (data.checkout_url) {
         window.location.href = data.checkout_url
       } else if (data.error) {
@@ -53,13 +47,11 @@ export function PricingCard({ plan }: PricingCardProps) {
   }
 
   return (
-    <div
-      className={`relative bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl border ${
-        plan.popular
-          ? 'border-orange-300 dark:border-orange-600 ring-2 ring-orange-500/20'
-          : 'border-gray-200 dark:border-gray-700'
-      }`}
-    >
+    <div className={`relative bg-white dark:bg-gray-800 rounded-2xl p-8 shadow-xl border ${
+      plan.popular
+        ? 'border-orange-300 dark:border-orange-600 ring-2 ring-orange-500/20'
+        : 'border-gray-200 dark:border-gray-700'
+    }`}>
       {plan.popular && (
         <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
           <span className="bg-orange-500 text-white text-xs font-semibold px-4 py-1 rounded-full">
@@ -108,7 +100,6 @@ export function PricingCard({ plan }: PricingCardProps) {
 }
 
 // --- Pricing Page ---
-
 export default function PricingPage() {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">

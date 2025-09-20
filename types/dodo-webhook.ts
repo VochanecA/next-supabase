@@ -17,6 +17,11 @@ export interface DodoPaymentSucceededData {
   subscription_id?: string
   product_id?: string
   price_id?: string
+  payment_method?: string
+  card_last_four?: string
+  card_network?: string
+  card_type?: string
+  metadata?: Record<string, unknown>
 }
 
 // Subscription cancelled
@@ -24,9 +29,44 @@ export interface DodoSubscriptionCancelledData {
   subscription_id: string
   status: 'cancelled'
   customer: { customer_id: string; email: string; name?: string }
+  product_id?: string
+  quantity?: number
+  currency?: string
+  start_date?: string
+  next_billing_date?: string
+  trial_period_days?: number
+  metadata?: Record<string, unknown>
+  created_at?: string
 }
 
-// Union of all webhook payloads you care about
+// Refund
+export interface DodoRefundData {
+  refund_id: string
+  payment_id: string
+  customer: { customer_id: string; email: string; name?: string }
+  amount: number
+  currency?: string
+  is_partial?: boolean
+  reason?: string
+  status?: string
+  created_at?: string
+}
+
+// Dispute
+export interface DodoDisputeData {
+  dispute_id: string
+  payment_id: string
+  amount?: number | string
+  currency?: string
+  dispute_stage?: string
+  dispute_status?: string
+  remarks?: string
+  created_at?: string
+}
+
+// Union of all webhook payloads
 export type MyWebhookPayload =
-  | DodoWebhookPayload<DodoPaymentSucceededData> & { type: 'payment.succeeded' }
-  | DodoWebhookPayload<DodoSubscriptionCancelledData> & { type: 'subscription.cancelled' }
+  | (DodoWebhookPayload<DodoPaymentSucceededData> & { type: 'payment.succeeded' })
+  | (DodoWebhookPayload<DodoSubscriptionCancelledData> & { type: 'subscription.cancelled' })
+  | (DodoWebhookPayload<DodoRefundData> & { type: 'payment.refund' })
+  | (DodoWebhookPayload<DodoDisputeData> & { type: 'payment.dispute' })
