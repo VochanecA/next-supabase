@@ -14,6 +14,11 @@ import type {
 import { createClient } from '@/lib/supabase/server'
 import { getRequiredWebhookKey } from '@/lib/env'
 
+// --- Logger ---
+const log = (...args: unknown[]): void => {
+  if (process.env.NODE_ENV === 'development') console.log(...args)
+}
+
 // --- Type Predicates ---
 const isPaymentSucceeded = (
   payload: MyWebhookPayload
@@ -45,30 +50,46 @@ const isDispute = (
 ): payload is DodoWebhookPayload<DodoDisputeData> & { type: 'payment.dispute' } =>
   payload.type === 'payment.dispute'
 
-// --- Logger ---
-const log = (...args: unknown[]): void => {
-  if (process.env.NODE_ENV === 'development') console.log(...args)
-}
-
 // --- Supabase Helpers ---
 const upsertCustomer = async (customer: { customer_id: string; email: string; name?: string }) => {
   const supabase = await createClient()
-  const { error } = await supabase
-    .from('customers')
-    .upsert(
-      {
-        customer_id: customer.customer_id,
-        email: customer.email,
-        name: customer.name ?? null,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'customer_id' }
-    )
+  try {
+    const { error } = await supabase
+      .from('customers')
+      .upsert(
+        {
+          customer_id: customer.customer_id,
+          email: customer.email,
+          name: customer.name ?? null,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: ['customer_id', 'email'] }
+      )
+    if (error) throw error
+    log('✅ Processed customer:', customer.customer_id)
+  } catch (err) {
+    log('❌ Failed to upsert customer:', customer.customer_id, err)
+  }
+}
 
-  if (error) {
-    console.error('❌ Failed to upsert customer:', customer.customer_id, error)
-  } else {
-    console.log('✅ Processed customer:', customer.customer_id)
+const ensureProductExists = async (product_id: string) => {
+  const supabase = await createClient()
+  try {
+    const { error } = await supabase
+      .from('products')
+      .upsert(
+        {
+          product_id,
+          name: product_id, // fallback name
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'product_id' }
+      )
+    if (error) throw error
+    log('✅ Ensured product exists:', product_id)
+  } catch (err) {
+    log('❌ Failed to ensure product exists:', product_id, err)
   }
 }
 
@@ -80,55 +101,38 @@ const upsertSubscription = async (
   const data = payload.data
   const supabase = await createClient()
 
-  // --- Ensure product exists ---
-  if (data.product_id) {
-    const { error: prodError } = await supabase
-      .from('products')
+  try {
+    // Ensure product exists first
+    if (data.product_id) await ensureProductExists(data.product_id)
+
+    const { error } = await supabase
+      .from('subscriptions')
       .upsert(
         {
-          product_id: data.product_id,
-          name: data.product_id, // Replace with real name if available
-          created_at: new Date().toISOString(),
+          subscription_id: data.subscription_id,
+          customer_id: data.customer.customer_id,
+          product_id: data.product_id ?? null,
+          subscription_status: data.status,
+          quantity: data.quantity ?? 1,
+          currency: data.currency ?? null,
+          start_date: data.start_date ?? new Date().toISOString(),
+          next_billing_date: data.next_billing_date ?? null,
+          trial_end_date:
+            'trial_period_days' in data && data.trial_period_days
+              ? new Date(Date.now() + data.trial_period_days * 24 * 60 * 60 * 1000).toISOString()
+              : null,
+          metadata: 'metadata' in data ? data.metadata : {},
+          created_at: data.created_at ?? new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
-        { onConflict: 'product_id' }
+        { onConflict: 'subscription_id' }
       )
 
-    if (prodError) {
-      console.error('❌ Failed to upsert product:', data.product_id, prodError)
-    } else {
-      console.log('✅ Ensured product exists:', data.product_id)
-    }
-  }
-
-  // --- Upsert subscription ---
-  const { error } = await supabase
-    .from('subscriptions')
-    .upsert(
-      {
-        subscription_id: data.subscription_id,
-        customer_id: data.customer.customer_id,
-        product_id: data.product_id ?? null,
-        subscription_status: data.status,
-        quantity: data.quantity ?? 1,
-        currency: data.currency ?? null,
-        start_date: data.start_date ?? new Date().toISOString(),
-        next_billing_date: data.next_billing_date ?? null,
-        trial_end_date:
-          'trial_period_days' in data && data.trial_period_days
-            ? new Date(Date.now() + data.trial_period_days * 24 * 60 * 60 * 1000).toISOString()
-            : null,
-        metadata: data.metadata ?? {},
-        created_at: data.created_at ?? new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'subscription_id' }
-    )
-
-  if (error) {
-    console.error('❌ Failed to upsert subscription:', data.subscription_id, error)
-  } else {
-    console.log('✅ Processed subscription:', data.subscription_id, '→', data.status)
+    if (error) throw error
+    log(`✅ Processed subscription: ${data.subscription_id} → ${data.status}`)
+  } catch (err) {
+    log(`❌ Failed to upsert subscription: ${data.subscription_id}`, err)
+    log('Payload:', payload)
   }
 }
 
@@ -136,87 +140,88 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
   const data = payload.data
   const supabase = await createClient()
 
-  const { error } = await supabase
-    .from('transactions')
-    .upsert(
-      {
-        transaction_id: data.payment_id,
-        subscription_id: data.subscription_id ?? null,
-        customer_id: data.customer.customer_id,
-        status: data.status ?? 'unknown',
-        amount: data.total_amount,
-        currency: data.currency,
-        payment_method: data.payment_method ?? null,
-        card_last_four: data.card_last_four ?? null,
-        card_network: data.card_network ?? null,
-        card_type: data.card_type ?? null,
-        billed_at: payload.timestamp,
-        metadata: data.metadata ?? {},
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'transaction_id' }
-    )
-
-  if (error) {
-    console.error('❌ Failed to upsert transaction:', data.payment_id, error)
-  } else {
-    console.log('✅ Processed transaction:', data.payment_id, '→', data.status)
+  try {
+    const { error } = await supabase
+      .from('transactions')
+      .upsert(
+        {
+          transaction_id: data.payment_id,
+          subscription_id: data.subscription_id ?? null,
+          customer_id: data.customer.customer_id,
+          status: data.status ?? 'unknown',
+          amount: data.total_amount,
+          currency: data.currency,
+          payment_method: data.payment_method ?? null,
+          card_last_four: data.card_last_four ?? null,
+          card_network: data.card_network ?? null,
+          card_type: data.card_type ?? null,
+          billed_at: payload.timestamp,
+          metadata: data.metadata ?? {},
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'transaction_id' }
+      )
+    if (error) throw error
+    log(`✅ Processed transaction: ${data.payment_id} → ${data.status}`)
+  } catch (err) {
+    log(`❌ Failed to upsert transaction: ${data.payment_id}`, err)
+    log('Payload:', payload)
   }
 }
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
   const supabase = await createClient()
-
-  const { error } = await supabase
-    .from('refunds')
-    .upsert(
-      {
-        refund_id: data.refund_id,
-        transaction_id: data.payment_id,
-        customer_id: data.customer.customer_id,
-        amount: data.amount,
-        currency: data.currency ?? null,
-        is_partial: data.is_partial ?? false,
-        reason: data.reason ?? null,
-        status: data.status ?? null,
-        created_at: data.created_at ?? new Date().toISOString(),
-      },
-      { onConflict: 'refund_id' }
-    )
-
-  if (error) {
-    console.error('❌ Failed to upsert refund:', data.refund_id, error)
-  } else {
-    console.log('✅ Processed refund:', data.refund_id, '→', data.status)
+  try {
+    const { error } = await supabase
+      .from('refunds')
+      .upsert(
+        {
+          refund_id: data.refund_id,
+          transaction_id: data.payment_id,
+          customer_id: data.customer.customer_id,
+          amount: data.amount,
+          currency: data.currency ?? null,
+          is_partial: data.is_partial ?? false,
+          reason: data.reason ?? null,
+          status: data.status ?? null,
+          created_at: data.created_at ?? new Date().toISOString(),
+        },
+        { onConflict: 'refund_id' }
+      )
+    if (error) throw error
+    log(`✅ Processed refund: ${data.refund_id} → ${data.status}`)
+  } catch (err) {
+    log(`❌ Failed to upsert refund: ${data.refund_id}`, err)
+    log('Payload:', payload)
   }
 }
 
 const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
   const data = payload.data
   const supabase = await createClient()
-
-  const { error } = await supabase
-    .from('disputes')
-    .upsert(
-      {
-        dispute_id: data.dispute_id,
-        transaction_id: data.payment_id,
-        amount: data.amount ?? null,
-        currency: data.currency ?? null,
-        dispute_stage: data.dispute_stage ?? null,
-        dispute_status: data.dispute_status ?? null,
-        remarks: data.remarks ?? null,
-        created_at: data.created_at ?? new Date().toISOString(),
-      },
-      { onConflict: 'dispute_id' }
-    )
-
-  if (error) {
-    console.error('❌ Failed to upsert dispute:', data.dispute_id, error)
-  } else {
-    console.log('✅ Processed dispute:', data.dispute_id, '→', data.dispute_status)
+  try {
+    const { error } = await supabase
+      .from('disputes')
+      .upsert(
+        {
+          dispute_id: data.dispute_id,
+          transaction_id: data.payment_id,
+          amount: data.amount ?? null,
+          currency: data.currency ?? null,
+          dispute_stage: data.dispute_stage ?? null,
+          dispute_status: data.dispute_status ?? null,
+          remarks: data.remarks ?? null,
+          created_at: data.created_at ?? new Date().toISOString(),
+        },
+        { onConflict: 'dispute_id' }
+      )
+    if (error) throw error
+    log(`✅ Processed dispute: ${data.dispute_id} → ${data.dispute_status}`)
+  } catch (err) {
+    log(`❌ Failed to upsert dispute: ${data.dispute_id}`, err)
+    log('Payload:', payload)
   }
 }
 
@@ -226,35 +231,25 @@ export const POST = Webhooks({
 
   onPayload: async (payload: unknown) => {
     const p = payload as MyWebhookPayload
-    log('🔔 Received webhook payload:', p.type)
+    log('🔔 Received webhook event:', p.type)
 
-    // Upsert customer if present
+    // 1️⃣ Upsert customer first
     if ('customer' in p.data && p.data.customer) {
       await upsertCustomer(p.data.customer)
     }
 
-    // Upsert subscription if active, created, or cancelled
+    // 2️⃣ Upsert subscription (active/created/cancelled)
     if (isSubscriptionActive(p) || isSubscriptionCreated(p) || isSubscriptionCancelled(p)) {
-      console.log('➡ Upserting subscription for event type:', p.type)
       await upsertSubscription(p)
     }
 
-    // Upsert transaction only for payment.succeeded
+    // 3️⃣ Upsert transaction (payment.succeeded)
     if (isPaymentSucceeded(p)) {
-      console.log('➡ Upserting transaction for event type:', p.type)
       await upsertTransaction(p)
     }
 
-    // Upsert refund
-    if (isRefund(p)) {
-      console.log('➡ Upserting refund for event type:', p.type)
-      await upsertRefund(p)
-    }
-
-    // Upsert dispute
-    if (isDispute(p)) {
-      console.log('➡ Upserting dispute for event type:', p.type)
-      await upsertDispute(p)
-    }
+    // 4️⃣ Refund / Dispute
+    if (isRefund(p)) await upsertRefund(p)
+    if (isDispute(p)) await upsertDispute(p)
   },
 })

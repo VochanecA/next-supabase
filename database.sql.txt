@@ -106,3 +106,6 @@ CREATE INDEX idx_sub_customer ON public.subscriptions(customer_id);
 CREATE INDEX idx_trans_customer ON public.transactions(customer_id);
 CREATE INDEX idx_refund_customer ON public.refunds(customer_id);
 CREATE INDEX idx_dispute_trans ON public.disputes(transaction_id);
+
+ALTER TABLE public.subscriptions ADD COLUMN metadata jsonb DEFAULT '{}';
+ALTER TABLE public.transactions ADD COLUMN metadata jsonb DEFAULT '{}';
