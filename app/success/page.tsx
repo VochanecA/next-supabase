@@ -3,16 +3,16 @@
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { Check } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 
-export default function SuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
 
-  // Optional: get session_id or subscription_id from query params-test
+  // Optional: get session_id or subscription_id from query params
   const sessionId = searchParams.get('session_id') || searchParams.get('subscription_id')
 
   useEffect(() => {
@@ -71,5 +71,23 @@ export default function SuccessPage() {
 
       <Footer />
     </div>
+  )
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+        <Header />
+        <main className="flex-1 w-full max-w-4xl mx-auto px-6 py-12 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl p-12 shadow-xl border border-gray-200 dark:border-gray-700">
+            <p className="text-lg text-gray-600 dark:text-gray-300">Loading...</p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    }>
+      <SuccessContent />
+    </Suspense>
   )
 }
