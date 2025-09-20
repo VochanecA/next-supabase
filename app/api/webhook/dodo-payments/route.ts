@@ -136,39 +136,44 @@ const upsertSubscription = async (
   }
 }
 
-const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
+const upsertTransaction = async (
+  payload: DodoWebhookPayload<DodoPaymentSucceededData>
+) => {
   const data = payload.data
   const supabase = await createClient()
+
+  // Map raw webhook fields to your table
+  const transactionRow = {
+    transaction_id: data.payment_id,
+    subscription_id: data.subscription_id ?? null,
+    customer_id: data.customer.customer_id,
+    status: data.status ?? 'unknown',
+    amount: data.total_amount, // total_amount from webhook
+    currency: data.currency ?? 'USD',
+    payment_method: data.payment_method ?? null,
+    card_last_four: data.card_last_four ?? null,
+    card_network: data.card_network ?? null,
+    card_type: data.card_type ?? null,
+    billed_at: payload.timestamp, // webhook timestamp
+    metadata: data.metadata ?? {},
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+
+  log('➡ Upserting transaction for event type:', payload.type, transactionRow)
 
   try {
     const { error } = await supabase
       .from('transactions')
-      .upsert(
-        {
-          transaction_id: data.payment_id,
-          subscription_id: data.subscription_id ?? null,
-          customer_id: data.customer.customer_id,
-          status: data.status ?? 'unknown',
-          amount: data.total_amount,
-          currency: data.currency,
-          payment_method: data.payment_method ?? null,
-          card_last_four: data.card_last_four ?? null,
-          card_network: data.card_network ?? null,
-          card_type: data.card_type ?? null,
-          billed_at: payload.timestamp,
-          metadata: data.metadata ?? {},
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'transaction_id' }
-      )
+      .upsert(transactionRow, { onConflict: 'transaction_id' })
+
     if (error) throw error
-    log(`✅ Processed transaction: ${data.payment_id} → ${data.status}`)
+    log('✅ Processed transaction:', data.payment_id)
   } catch (err) {
-    log(`❌ Failed to upsert transaction: ${data.payment_id}`, err)
-    log('Payload:', payload)
+    log('❌ Failed to upsert transaction:', data.payment_id, err)
   }
 }
+
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
