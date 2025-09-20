@@ -12,7 +12,7 @@ export default function SuccessPage() {
   const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
 
-  // Optional: get session_id or subscription_id from query params
+  // Optional: get session_id or subscription_id from query params-test
   const sessionId = searchParams.get('session_id') || searchParams.get('subscription_id')
 
   useEffect(() => {
