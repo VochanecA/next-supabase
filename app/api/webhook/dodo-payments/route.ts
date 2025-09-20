@@ -53,7 +53,7 @@ const log = (...args: unknown[]): void => {
 // --- Supabase Helpers ---
 const upsertCustomer = async (customer: { customer_id: string; email: string; name?: string }) => {
   const supabase = await createClient()
-  await supabase
+  const { error } = await supabase
     .from('customers')
     .upsert(
       {
@@ -64,6 +64,12 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
       },
       { onConflict: 'customer_id' }
     )
+
+  if (error) {
+    console.error('❌ Failed to upsert customer:', customer.customer_id, error)
+  } else {
+    console.log('✅ Processed customer:', customer.customer_id)
+  }
 }
 
 const upsertSubscription = async (
@@ -74,14 +80,14 @@ const upsertSubscription = async (
   const data = payload.data
   const supabase = await createClient()
 
-  // --- Ensure product exists to satisfy foreign key ---
+  // --- Ensure product exists ---
   if (data.product_id) {
     const { error: prodError } = await supabase
       .from('products')
       .upsert(
         {
           product_id: data.product_id,
-          name: data.product_id, // Replace with actual product name if available
+          name: data.product_id, // Replace with real name if available
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -126,12 +132,11 @@ const upsertSubscription = async (
   }
 }
 
-
 const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
   const data = payload.data
   const supabase = await createClient()
 
-  await supabase
+  const { error } = await supabase
     .from('transactions')
     .upsert(
       {
@@ -153,14 +158,18 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
       { onConflict: 'transaction_id' }
     )
 
-  log('Processed transaction:', data.payment_id, '→', data.status)
+  if (error) {
+    console.error('❌ Failed to upsert transaction:', data.payment_id, error)
+  } else {
+    console.log('✅ Processed transaction:', data.payment_id, '→', data.status)
+  }
 }
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
   const supabase = await createClient()
 
-  await supabase
+  const { error } = await supabase
     .from('refunds')
     .upsert(
       {
@@ -177,14 +186,18 @@ const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
       { onConflict: 'refund_id' }
     )
 
-  log('Processed refund:', data.refund_id, '→', data.status)
+  if (error) {
+    console.error('❌ Failed to upsert refund:', data.refund_id, error)
+  } else {
+    console.log('✅ Processed refund:', data.refund_id, '→', data.status)
+  }
 }
 
 const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
   const data = payload.data
   const supabase = await createClient()
 
-  await supabase
+  const { error } = await supabase
     .from('disputes')
     .upsert(
       {
@@ -200,7 +213,11 @@ const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
       { onConflict: 'dispute_id' }
     )
 
-  log('Processed dispute:', data.dispute_id, '→', data.dispute_status)
+  if (error) {
+    console.error('❌ Failed to upsert dispute:', data.dispute_id, error)
+  } else {
+    console.log('✅ Processed dispute:', data.dispute_id, '→', data.dispute_status)
+  }
 }
 
 // --- Webhook Handler ---
@@ -209,28 +226,34 @@ export const POST = Webhooks({
 
   onPayload: async (payload: unknown) => {
     const p = payload as MyWebhookPayload
-    log('🔔 Raw webhook payload:', p.type)
+    log('🔔 Received webhook payload:', p.type)
 
     // Upsert customer if present
     if ('customer' in p.data && p.data.customer) {
       await upsertCustomer(p.data.customer)
     }
 
-    // Insert subscriptions for active, created, or cancelled events
+    // Upsert subscription if active, created, or cancelled
     if (isSubscriptionActive(p) || isSubscriptionCreated(p) || isSubscriptionCancelled(p)) {
+      console.log('➡ Upserting subscription for event type:', p.type)
       await upsertSubscription(p)
     }
 
-    // Insert transactions only on payment.succeeded
+    // Upsert transaction only for payment.succeeded
     if (isPaymentSucceeded(p)) {
+      console.log('➡ Upserting transaction for event type:', p.type)
       await upsertTransaction(p)
     }
 
+    // Upsert refund
     if (isRefund(p)) {
+      console.log('➡ Upserting refund for event type:', p.type)
       await upsertRefund(p)
     }
 
+    // Upsert dispute
     if (isDispute(p)) {
+      console.log('➡ Upserting dispute for event type:', p.type)
       await upsertDispute(p)
     }
   },
