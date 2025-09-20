@@ -2,63 +2,93 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FC, useEffect } from "react";
-import { usePathname } from "next/navigation";
+import { useState, useEffect, type FC, useCallback } from "react";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Menu, X, Bell, User as UserIcon, Moon, Sun, Home, LayoutDashboard } from "lucide-react";
+import {
+  Menu,
+  X,
+  Bell,
+  User as UserIcon,
+  LayoutDashboard,
+  Home,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import type { Database } from "@/lib/types";
 import { useTheme } from "next-themes";
 
-const navItems = ["Why", "About", "Features", "Pricing"];
+// Table row types from Supabase schema
+type CustomerRow = Database["public"]["Tables"]["customers"]["Row"];
+type SubscriptionRow = Database["public"]["Tables"]["subscriptions"]["Row"];
+
+const NAV_ITEMS = ["Why", "About", "Features", "Pricing"];
 
 export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const { theme, setTheme } = useTheme();
-  const pathname = usePathname();
+
+  const supabase = createClient();
+
+  const fetchUserAndSubscription = useCallback(async () => {
+    try {
+      const { data } = await supabase.auth.getUser();
+      setUser(data.user ?? null);
+
+      if (data.user?.email) {
+        const { data: customer, error: customerError } = await supabase
+          .from<CustomerRow>("customers")
+          .select("customer_id")
+          .eq("email", data.user.email)
+          .single();
+
+        if (customerError) {
+          console.error("Customer fetch error:", customerError);
+          return;
+        }
+
+        if (customer) {
+          const { data: subscriptions, error: subsError } = await supabase
+            .from<SubscriptionRow>("subscriptions")
+            .select("subscription_status")
+            .eq("customer_id", customer.customer_id);
+
+          if (subsError) {
+            console.error("Subscription fetch error:", subsError);
+            return;
+          }
+
+          const isActive = subscriptions?.some(
+            (sub) => sub.subscription_status === "active"
+          );
+          setHasActiveSubscription(isActive || false);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch user data:", err);
+    }
+  }, [supabase]);
 
   useEffect(() => {
-    const supabase = createClient();
+    fetchUserAndSubscription();
 
-    const fetchUser = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        setUser(data.user ?? null);
-        
-        // Check if user has active subscription
-        if (data.user) {
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('customer_id')
-            .eq('email', data.user.email)
-            .single();
-            
-          if (customer) {
-            const { data: subscriptions } = await supabase
-              .from('subscriptions')
-              .select('subscription_status')
-              .eq('customer_id', customer.customer_id);
-              
-            const isActive = subscriptions?.some(
-              sub => sub.subscription_status === 'active'
-            );
-            setHasActiveSubscription(isActive || false);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch user data:", err);
-      }
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(() => {
+      void fetchUserAndSubscription();
+    });
+
+    return () => {
+      subscription.unsubscribe();
     };
-
-    fetchUser();
-  }, [pathname]);
+  }, [fetchUserAndSubscription, supabase.auth]);
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
-  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const toggleTheme = (): void =>
+    setTheme(theme === "dark" ? "light" : "dark");
 
   return (
     <>
@@ -77,7 +107,7 @@ export const Header: FC = () => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            {navItems.map((page) => (
+            {NAV_ITEMS.map((page) => (
               <Link
                 key={page}
                 href={`/${page.toLowerCase()}`}
@@ -117,6 +147,7 @@ export const Header: FC = () => {
             onClick={toggleMenu}
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             aria-label="Toggle menu"
+            aria-expanded={isMobileMenuOpen}
             whileTap={{ scale: 0.9 }}
           >
             <motion.div
@@ -126,7 +157,11 @@ export const Header: FC = () => {
               exit={{ rotate: 90, opacity: 0 }}
               transition={{ duration: 0.2 }}
             >
-              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {isMobileMenuOpen ? (
+                <X className="w-6 h-6" />
+              ) : (
+                <Menu className="w-6 h-6" />
+              )}
             </motion.div>
           </motion.button>
         </div>
@@ -136,6 +171,8 @@ export const Header: FC = () => {
       <AnimatePresence>
         {isMobileMenuOpen && (
           <motion.div
+            role="dialog"
+            aria-modal="true"
             initial={{ y: "-100%", opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "-100%", opacity: 0 }}
@@ -160,7 +197,7 @@ export const Header: FC = () => {
 
               {/* Mobile Navigation */}
               <nav className="space-y-4">
-                {navItems.map((page) => (
+                {NAV_ITEMS.map((page) => (
                   <Link
                     key={page}
                     href={`/${page.toLowerCase()}`}
@@ -202,30 +239,9 @@ export const Header: FC = () => {
                 )}
               </nav>
 
-              {/* Theme Toggle in Mobile Menu */}
+              {/* Theme Toggle in Mobile Menu (reuse ThemeSwitcher) */}
               <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
-                  <div className="flex items-center gap-3">
-                    {theme === "dark" ? (
-                      <Sun className="w-5 h-5 text-yellow-500" />
-                    ) : (
-                      <Moon className="w-5 h-5 text-indigo-500" />
-                    )}
-                    <span className="text-gray-900 dark:text-white font-medium">
-                      {theme === "dark" ? "Light Mode" : "Dark Mode"}
-                    </span>
-                  </div>
-                  <button
-                    onClick={toggleTheme}
-                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600 transition-colors focus:outline-none"
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        theme === "dark" ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
+                <ThemeSwitcher />
               </div>
             </div>
           </motion.div>
@@ -234,3 +250,5 @@ export const Header: FC = () => {
     </>
   );
 };
+
+export default Header;
