@@ -1,19 +1,25 @@
+// components/header.tsx
 "use client";
 
 import Link from "next/link";
 import { useState, type FC, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Menu, X, Bell, User as UserIcon } from "lucide-react"; // Icon renamed
+import { Menu, X, Bell, User as UserIcon, Moon, Sun, Home, LayoutDashboard } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
-import type { User as SupabaseUser } from "@supabase/supabase-js"; // Type alias
+import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { useTheme } from "next-themes";
 
 const navItems = ["Why", "About", "Features", "Pricing"];
 
 export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const { theme, setTheme } = useTheme();
+  const pathname = usePathname();
 
   useEffect(() => {
     const supabase = createClient();
@@ -22,15 +28,37 @@ export const Header: FC = () => {
       try {
         const { data } = await supabase.auth.getUser();
         setUser(data.user ?? null);
+        
+        // Check if user has active subscription
+        if (data.user) {
+          const { data: customer } = await supabase
+            .from('customers')
+            .select('customer_id')
+            .eq('email', data.user.email)
+            .single();
+            
+          if (customer) {
+            const { data: subscriptions } = await supabase
+              .from('subscriptions')
+              .select('subscription_status')
+              .eq('customer_id', customer.customer_id);
+              
+            const isActive = subscriptions?.some(
+              sub => sub.subscription_status === 'active'
+            );
+            setHasActiveSubscription(isActive || false);
+          }
+        }
       } catch (err) {
-        console.error("Failed to fetch Supabase user:", err);
+        console.error("Failed to fetch user data:", err);
       }
     };
 
     fetchUser();
-  }, []);
+  }, [pathname]);
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
+  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
 
   return (
     <>
@@ -59,12 +87,22 @@ export const Header: FC = () => {
               </Link>
             ))}
             {user && (
-              <Link
-                href="/protected"
-                className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium"
-              >
-                Protected
-              </Link>
+              <>
+                <Link
+                  href="/protected"
+                  className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium"
+                >
+                  Dashboard
+                </Link>
+                {hasActiveSubscription && (
+                  <Link
+                    href="/protected/web-app"
+                    className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium"
+                  >
+                    Web App
+                  </Link>
+                )}
+              </>
             )}
           </nav>
 
@@ -141,23 +179,54 @@ export const Header: FC = () => {
                   </Link>
                 ))}
                 {user && (
-                  <Link
-                    href="/protected"
-                    className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                  >
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.05 }}
-                      className="w-6 h-6 flex items-center justify-center"
+                  <>
+                    <Link
+                      href="/protected"
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
+                      onClick={() => setIsMobileMenuOpen(false)}
                     >
-                      <span className="w-1 h-4 bg-orange-500 rounded-full"></span>
-                    </motion.div>
-                    Protected
-                  </Link>
+                      <LayoutDashboard className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                      Dashboard
+                    </Link>
+                    {hasActiveSubscription && (
+                      <Link
+                        href="/protected/web-app"
+                        className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        <Home className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                        Web App
+                      </Link>
+                    )}
+                  </>
                 )}
               </nav>
+
+              {/* Theme Toggle in Mobile Menu */}
+              <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+                  <div className="flex items-center gap-3">
+                    {theme === "dark" ? (
+                      <Sun className="w-5 h-5 text-yellow-500" />
+                    ) : (
+                      <Moon className="w-5 h-5 text-indigo-500" />
+                    )}
+                    <span className="text-gray-900 dark:text-white font-medium">
+                      {theme === "dark" ? "Light Mode" : "Dark Mode"}
+                    </span>
+                  </div>
+                  <button
+                    onClick={toggleTheme}
+                    className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600 transition-colors focus:outline-none"
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        theme === "dark" ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
             </div>
           </motion.div>
         )}
