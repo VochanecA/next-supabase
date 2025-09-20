@@ -2,11 +2,22 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FC, useEffect } from "react";
+import { useState, type FC, useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Menu, X, Bell, User as UserIcon, Moon, Sun, Home, LayoutDashboard } from "lucide-react";
+import { 
+  Menu, 
+  X, 
+  Bell, 
+  User as UserIcon, 
+  Moon, 
+  Sun, 
+  Home, 
+  LayoutDashboard,
+  ChevronDown,
+  LogOut
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -16,10 +27,12 @@ const navItems = ["Why", "About", "Features", "Pricing"];
 
 export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
@@ -54,11 +67,36 @@ export const Header: FC = () => {
       }
     };
 
-    fetchUser();
-  }, [pathname]);
+    // Only fetch user data if not already loaded
+    if (!user) {
+      fetchUser();
+    }
+  }, []); // Empty dependency array to run only once
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
+  const toggleUserDropdown = (): void => setIsUserDropdownOpen((prev) => !prev);
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+
+  const handleSignOut = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    setUser(null);
+    setIsUserDropdownOpen(false);
+  };
 
   return (
     <>
@@ -86,30 +124,80 @@ export const Header: FC = () => {
                 {page}
               </Link>
             ))}
-            {user && (
-              <>
-                <Link
-                  href="/protected"
-                  className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium"
-                >
-                  Dashboard
-                </Link>
-                {hasActiveSubscription && (
-                  <Link
-                    href="/protected/web-app"
-                    className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium"
-                  >
-                    Web App
-                  </Link>
-                )}
-              </>
-            )}
           </nav>
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-4">
-            <AuthButton />
             <ThemeSwitcher />
+            
+            {/* User Dropdown for Desktop */}
+            {user ? (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={toggleUserDropdown}
+                  className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-label="User menu"
+                >
+                  <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
+                    <UserIcon className="w-5 h-5 text-orange-500" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[120px] truncate">
+                    {user.email}
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                <AnimatePresence>
+                  {isUserDropdownOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.2 }}
+                      className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
+                    >
+                      <div className="p-2">
+                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 mb-2">
+                          Signed in as
+                        </div>
+                        <div className="px-3 py-1 text-sm font-medium text-gray-900 dark:text-white truncate mb-2">
+                          {user.email}
+                        </div>
+                        
+                        <Link
+                          href="/protected"
+                          className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 text-sm"
+                          onClick={() => setIsUserDropdownOpen(false)}
+                        >
+                          <LayoutDashboard className="w-4 h-4" />
+                          Dashboard
+                        </Link>
+                        {hasActiveSubscription && (
+                          <Link
+                            href="/protected/web-app"
+                            className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 text-sm"
+                            onClick={() => setIsUserDropdownOpen(false)}
+                          >
+                            <Home className="w-4 h-4" />
+                            Web App
+                          </Link>
+                        )}
+                        
+                        <button
+                          onClick={handleSignOut}
+                          className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 w-full text-sm mt-2"
+                        >
+                          <LogOut className="w-4 h-4" />
+                          Sign Out
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <AuthButton />
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -198,6 +286,13 @@ export const Header: FC = () => {
                         Web App
                       </Link>
                     )}
+                    <button
+                      onClick={handleSignOut}
+                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium w-full"
+                    >
+                      <LogOut className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                      Sign Out
+                    </button>
                   </>
                 )}
               </nav>
