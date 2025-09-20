@@ -63,7 +63,7 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
           name: customer.name ?? null,
           updated_at: new Date().toISOString(),
         },
-        { onConflict: ['customer_id', 'email'] }
+        { onConflict: 'customer_id' } // <-- single string here
       )
     if (error) throw error
     log('✅ Processed customer:', customer.customer_id)
