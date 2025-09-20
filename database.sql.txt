@@ -1,0 +1,108 @@
+-- =============================================
+-- Customers Table
+-- =============================================
+CREATE TABLE public.customers (
+  customer_id TEXT NOT NULL PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+-- =============================================
+-- Products Table (optional, useful for subscriptions)
+-- =============================================
+CREATE TABLE public.products (
+  product_id TEXT NOT NULL PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  price NUMERIC(10, 2),
+  currency TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now()
+);
+
+-- =============================================
+-- Subscriptions Table
+-- =============================================
+CREATE TABLE public.subscriptions (
+  subscription_id TEXT NOT NULL PRIMARY KEY,
+  customer_id TEXT NOT NULL,
+  product_id TEXT,
+  subscription_status TEXT NOT NULL,
+  scheduled_change TEXT,
+  quantity INT DEFAULT 1,
+  currency TEXT,
+  start_date TIMESTAMP WITH TIME ZONE DEFAULT now(),
+  next_billing_date TIMESTAMP WITH TIME ZONE,
+  trial_end_date TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  
+  CONSTRAINT fk_sub_customer FOREIGN KEY(customer_id) REFERENCES public.customers(customer_id) ON DELETE CASCADE,
+  CONSTRAINT fk_sub_product FOREIGN KEY(product_id) REFERENCES public.products(product_id) ON DELETE SET NULL
+);
+
+-- =============================================
+-- Transactions Table
+-- =============================================
+CREATE TABLE public.transactions (
+  transaction_id TEXT NOT NULL PRIMARY KEY,
+  subscription_id TEXT,
+  customer_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  amount NUMERIC(10,2),
+  currency TEXT,
+  payment_method TEXT,
+  card_last_four TEXT,
+  card_network TEXT,
+  card_type TEXT,
+  billed_at TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+
+  CONSTRAINT fk_trans_sub FOREIGN KEY(subscription_id) REFERENCES public.subscriptions(subscription_id) ON DELETE SET NULL,
+  CONSTRAINT fk_trans_customer FOREIGN KEY(customer_id) REFERENCES public.customers(customer_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- Refunds Table
+-- =============================================
+CREATE TABLE public.refunds (
+  refund_id TEXT NOT NULL PRIMARY KEY,
+  transaction_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  amount NUMERIC(10,2) NOT NULL,
+  currency TEXT,
+  is_partial BOOLEAN DEFAULT false,
+  reason TEXT,
+  status TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+
+  CONSTRAINT fk_refund_trans FOREIGN KEY(transaction_id) REFERENCES public.transactions(transaction_id) ON DELETE CASCADE,
+  CONSTRAINT fk_refund_customer FOREIGN KEY(customer_id) REFERENCES public.customers(customer_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- Disputes Table
+-- =============================================
+CREATE TABLE public.disputes (
+  dispute_id TEXT NOT NULL PRIMARY KEY,
+  transaction_id TEXT NOT NULL,
+  amount NUMERIC(10,2),
+  currency TEXT,
+  dispute_stage TEXT,
+  dispute_status TEXT,
+  remarks TEXT,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
+
+  CONSTRAINT fk_dispute_trans FOREIGN KEY(transaction_id) REFERENCES public.transactions(transaction_id) ON DELETE CASCADE
+);
+
+-- =============================================
+-- Indexes for faster queries
+-- =============================================
+CREATE INDEX idx_sub_customer ON public.subscriptions(customer_id);
+CREATE INDEX idx_trans_customer ON public.transactions(customer_id);
+CREATE INDEX idx_refund_customer ON public.refunds(customer_id);
+CREATE INDEX idx_dispute_trans ON public.disputes(transaction_id);
