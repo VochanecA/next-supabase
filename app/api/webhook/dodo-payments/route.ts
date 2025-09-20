@@ -67,12 +67,36 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
 }
 
 const upsertSubscription = async (
-  payload: DodoWebhookPayload<DodoSubscriptionActiveData | DodoSubscriptionCreatedData | DodoSubscriptionCancelledData>
+  payload: DodoWebhookPayload<
+    DodoSubscriptionActiveData | DodoSubscriptionCreatedData | DodoSubscriptionCancelledData
+  >
 ) => {
   const data = payload.data
   const supabase = await createClient()
 
-  await supabase
+  // --- Ensure product exists to satisfy foreign key ---
+  if (data.product_id) {
+    const { error: prodError } = await supabase
+      .from('products')
+      .upsert(
+        {
+          product_id: data.product_id,
+          name: data.product_id, // Replace with actual product name if available
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'product_id' }
+      )
+
+    if (prodError) {
+      console.error('❌ Failed to upsert product:', data.product_id, prodError)
+    } else {
+      console.log('✅ Ensured product exists:', data.product_id)
+    }
+  }
+
+  // --- Upsert subscription ---
+  const { error } = await supabase
     .from('subscriptions')
     .upsert(
       {
@@ -95,8 +119,13 @@ const upsertSubscription = async (
       { onConflict: 'subscription_id' }
     )
 
-  log('Processed subscription:', data.subscription_id, '→', data.status)
+  if (error) {
+    console.error('❌ Failed to upsert subscription:', data.subscription_id, error)
+  } else {
+    console.log('✅ Processed subscription:', data.subscription_id, '→', data.status)
+  }
 }
+
 
 const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
   const data = payload.data
