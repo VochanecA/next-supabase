@@ -102,9 +102,18 @@ const upsertSubscription = async (
   const supabase = await createClient()
 
   try {
-    // Ensure product exists first
-    if (data.product_id) await ensureProductExists(data.product_id)
+    log('➡ Starting upsertSubscription for', data.subscription_id)
 
+    // Ensure product exists first
+    if (data.product_id) {
+      log('🔹 Ensuring product exists:', data.product_id)
+      await ensureProductExists(data.product_id)
+    }
+
+    // Ensure customer exists first
+    await upsertCustomer(data.customer)
+
+    // Upsert subscription
     const { error } = await supabase
       .from('subscriptions')
       .upsert(
@@ -129,50 +138,68 @@ const upsertSubscription = async (
       )
 
     if (error) throw error
-    log(`✅ Processed subscription: ${data.subscription_id} → ${data.status}`)
+    log(`✅ Upserted subscription: ${data.subscription_id} → ${data.status}`)
   } catch (err) {
     log(`❌ Failed to upsert subscription: ${data.subscription_id}`, err)
     log('Payload:', payload)
   }
 }
 
-const upsertTransaction = async (
-  payload: DodoWebhookPayload<DodoPaymentSucceededData>
-) => {
+const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
   const data = payload.data
   const supabase = await createClient()
 
-  // Map raw webhook fields to your table
-  const transactionRow = {
-    transaction_id: data.payment_id,
-    subscription_id: data.subscription_id ?? null,
-    customer_id: data.customer.customer_id,
-    status: data.status ?? 'unknown',
-    amount: data.total_amount, // total_amount from webhook
-    currency: data.currency ?? 'USD',
-    payment_method: data.payment_method ?? null,
-    card_last_four: data.card_last_four ?? null,
-    card_network: data.card_network ?? null,
-    card_type: data.card_type ?? null,
-    billed_at: payload.timestamp, // webhook timestamp
-    metadata: data.metadata ?? {},
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  }
-
-  log('➡ Upserting transaction for event type:', payload.type, transactionRow)
-
   try {
+    log('➡ Starting upsertTransaction for', data.payment_id)
+
+    // 1️⃣ Ensure customer exists first
+    await upsertCustomer(data.customer)
+
+    // 2️⃣ Ensure subscription exists minimally (to satisfy FK)
+    if (data.subscription_id) {
+      log('🔹 Ensuring subscription exists for FK:', data.subscription_id)
+      await supabase.from('subscriptions').upsert({
+        subscription_id: data.subscription_id,
+        customer_id: data.customer.customer_id,
+        subscription_status: 'active', // default if unknown
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        metadata: {}
+      }, { onConflict: 'subscription_id' })
+    }
+
+    // 3️⃣ Map webhook data to transactions table
+    const transactionRow = {
+      transaction_id: data.payment_id,
+      subscription_id: data.subscription_id ?? null,
+      customer_id: data.customer.customer_id,
+      status: data.status ?? 'unknown',
+      amount: data.total_amount,
+      currency: data.currency ?? 'USD',
+      payment_method: data.payment_method ?? null,
+      card_last_four: data.card_last_four ?? null,
+      card_network: data.card_network ?? null,
+      card_type: data.card_type ?? null,
+      billed_at: payload.timestamp,
+      metadata: data.metadata ?? {},
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+
+    log('🔹 Upserting transaction row:', transactionRow)
+
     const { error } = await supabase
       .from('transactions')
       .upsert(transactionRow, { onConflict: 'transaction_id' })
 
     if (error) throw error
-    log('✅ Processed transaction:', data.payment_id)
+    log('✅ Upserted transaction:', data.payment_id)
   } catch (err) {
     log('❌ Failed to upsert transaction:', data.payment_id, err)
+    log('Payload:', payload)
   }
 }
+
 
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
