@@ -79,10 +79,27 @@ export interface DodoDisputeData {
   created_at?: string
 }
 
-// Union of all webhook payloads
+// Subscription active
+export interface DodoSubscriptionActiveData {
+  subscription_id: string
+  status: 'active'
+  customer: { customer_id: string; email: string; name?: string }
+  product_id?: string
+  quantity?: number
+  currency?: string
+  start_date?: string
+  next_billing_date?: string
+  trial_period_days?: number
+  metadata?: Record<string, unknown>
+  created_at?: string
+  expires_at?: string
+}
+
+// Update MyWebhookPayload union
 export type MyWebhookPayload =
   | (DodoWebhookPayload<DodoPaymentSucceededData> & { type: 'payment.succeeded' })
   | (DodoWebhookPayload<DodoSubscriptionCreatedData> & { type: 'subscription.created' })
+  | (DodoWebhookPayload<DodoSubscriptionActiveData> & { type: 'subscription.active' })
   | (DodoWebhookPayload<DodoSubscriptionCancelledData> & { type: 'subscription.cancelled' })
   | (DodoWebhookPayload<DodoRefundData> & { type: 'payment.refund' })
   | (DodoWebhookPayload<DodoDisputeData> & { type: 'payment.dispute' })

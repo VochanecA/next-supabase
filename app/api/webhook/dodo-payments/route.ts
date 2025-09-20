@@ -5,6 +5,7 @@ import type {
   MyWebhookPayload,
   DodoWebhookPayload,
   DodoPaymentSucceededData,
+  DodoSubscriptionActiveData,
   DodoSubscriptionCreatedData,
   DodoSubscriptionCancelledData,
   DodoRefundData,
@@ -20,6 +21,11 @@ const isPaymentSucceeded = (
   payload.type === 'payment.succeeded'
 
 const isSubscriptionActive = (
+  payload: MyWebhookPayload
+): payload is DodoWebhookPayload<DodoSubscriptionActiveData> & { type: 'subscription.active' } =>
+  payload.type === 'subscription.active'
+
+const isSubscriptionCreated = (
   payload: MyWebhookPayload
 ): payload is DodoWebhookPayload<DodoSubscriptionCreatedData> & { type: 'subscription.created' } =>
   payload.type === 'subscription.created'
@@ -61,7 +67,7 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
 }
 
 const upsertSubscription = async (
-  payload: DodoWebhookPayload<DodoSubscriptionCreatedData | DodoSubscriptionCancelledData>
+  payload: DodoWebhookPayload<DodoSubscriptionActiveData | DodoSubscriptionCreatedData | DodoSubscriptionCancelledData>
 ) => {
   const data = payload.data
   const supabase = await createClient()
@@ -181,8 +187,8 @@ export const POST = Webhooks({
       await upsertCustomer(p.data.customer)
     }
 
-    // Insert subscriptions for active or cancelled events
-    if (isSubscriptionActive(p) || isSubscriptionCancelled(p)) {
+    // Insert subscriptions for active, created, or cancelled events
+    if (isSubscriptionActive(p) || isSubscriptionCreated(p) || isSubscriptionCancelled(p)) {
       await upsertSubscription(p)
     }
 
