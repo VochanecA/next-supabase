@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FC, useEffect, useCallback } from "react";
+import { useState, type FC, useEffect, useCallback, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
@@ -21,9 +21,10 @@ export const Header: FC = () => {
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const { theme, setTheme } = useTheme();
   const pathname = usePathname();
+  const prevPathnameRef = useRef(pathname);
 
   // Check user subscription status
-  const checkUserSubscription = useCallback(async (email: string | undefined) => {
+  const checkUserSubscription = useCallback(async (email: string | undefined): Promise<void> => {
     if (!email) {
       setHasActiveSubscription(false);
       return;
@@ -95,14 +96,18 @@ export const Header: FC = () => {
     });
 
     // Cleanup subscription on unmount
-    return () => {
+    return (): void => {
       subscription.unsubscribe();
     };
   }, [checkUserSubscription]);
 
-  // Close mobile menu when route changes
+  // Close mobile menu when route changes (but prevent flickering)
   useEffect(() => {
-    setIsMobileMenuOpen(false);
+    if (prevPathnameRef.current !== pathname) {
+      setIsMobileMenuOpen(false);
+      setIsUserDropdownOpen(false);
+      prevPathnameRef.current = pathname;
+    }
   }, [pathname]);
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
@@ -124,8 +129,8 @@ export const Header: FC = () => {
             </span>
           </Link>
 
-          {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          {/* Desktop Navigation - Using will-change-transform to prevent flickering */}
+          <nav className="hidden md:flex items-center gap-8 will-change-transform">
             {navItems.map((page) => (
               <Link
                 key={page}
@@ -138,7 +143,7 @@ export const Header: FC = () => {
           </nav>
 
           {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-4">
+          <div className="hidden md:flex items-center gap-4 will-change-transform">
             <ThemeSwitcher />
             
             {user ? (
@@ -165,42 +170,42 @@ export const Header: FC = () => {
                       initial={{ opacity: 0, y: -10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50"
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50 will-change-transform"
                       onMouseLeave={(): void => setIsUserDropdownOpen(false)}
                     >
-                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                      <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {user.email}
                         </p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                           Welcome back!
                         </p>
                       </div>
                       
                       <Link
                         href="/protected"
-                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                         onClick={(): void => setIsUserDropdownOpen(false)}
                       >
-                        <LayoutDashboard className="w-4 h-4" />
+                        <LayoutDashboard className="w-5 h-5" />
                         Dashboard
                       </Link>
                       
                       {hasActiveSubscription && (
                         <Link
                           href="/protected/web-app"
-                          className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                           onClick={(): void => setIsUserDropdownOpen(false)}
                         >
-                          <Home className="w-4 h-4" />
+                          <Home className="w-5 h-5" />
                           Web App
                         </Link>
                       )}
                       
                       <div className="border-t border-gray-100 dark:border-gray-700 mt-2 pt-2">
-                        <div className="px-4 py-2">
-                          <AuthButton />
+                        <div className="px-2">
+                          <AuthButton className="py-2.5 px-4 text-sm w-full justify-center" />
                         </div>
                       </div>
                     </motion.div>
@@ -241,7 +246,7 @@ export const Header: FC = () => {
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: "-100%", opacity: 0 }}
             transition={{ type: "spring", stiffness: 100, damping: 20 }}
-            className="md:hidden fixed inset-0 z-40 bg-white dark:bg-gray-900 pt-16"
+            className="md:hidden fixed inset-0 z-40 bg-white dark:bg-gray-900 pt-16 will-change-transform"
           >
             <div className="border-b border-gray-200 dark:border-gray-700 p-6">
               {/* User info */}
@@ -257,7 +262,7 @@ export const Header: FC = () => {
                       <AuthButton showEmailOnly />
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     {user ? "Welcome back!" : "Please sign in"}
                   </p>
                 </div>
@@ -335,9 +340,11 @@ export const Header: FC = () => {
                 </div>
               </div>
 
-              {/* Auth button in mobile menu */}
-              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                <AuthButton />
+              {/* Auth button in mobile menu - Made larger */}
+              <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex flex-col gap-3">
+                  <AuthButton className="py-3 px-4 text-base justify-center" />
+                </div>
               </div>
             </div>
           </motion.div>
