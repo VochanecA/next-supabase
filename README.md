@@ -103,3 +103,77 @@ Please file feedback and issues over on the [Supabase GitHub org](https://github
 - [Next.js Subscription Payments Starter](https://github.com/vercel/nextjs-subscription-payments)
 - [Cookie-based Auth and the Next.js 13 App Router (free course)](https://youtube.com/playlist?list=PL5S4mPUpp4OtMhpnp93EFSo42iQ40XjbF)
 - [Supabase Auth and the Next.js App Router](https://github.com/supabase/supabase/tree/master/examples/auth/nextjs)
+# AI Notify - Next.js Web App
+
+**AI Notify** is a modern web application delivering AI-powered, context-aware notifications to help users reduce noise and improve productivity. Built with Next.js, React, and Supabase for authentication, it focuses on performance, SEO, and modern best practices.
+
+---
+
+## Table of Contents
+
+- [Features](#features)  
+- [Tech Stack](#tech-stack)  
+- [Optimizations](#optimizations)  
+- [Getting Started](#getting-started)  
+- [Project Structure](#project-structure)  
+- [License](#license)
+
+---
+
+## Features
+
+- **LCP-Optimized Hero Section** – Critical-path CSS, minimal JS bundle, smooth CSS animations  
+- **Features Section** – Key features displayed with icons and fade-in-up animation  
+- **Dark/Light Mode** – Theme toggle with `next-themes`  
+- **Auth Integration** – Supabase authentication with subscription checks  
+- **Service Worker** – Offline support via `public/sw.js`  
+- **SEO-Friendly** – Metadata, Open Graph, Twitter cards, canonical URL  
+- **Performance-Focused** – Modern JS, preloaded fonts, minimized bundle sizes  
+
+---
+
+## Tech Stack
+
+- [Next.js](https://nextjs.org/) (v14+) – React framework  
+- [React](https://reactjs.org/) – UI library  
+- [Supabase](https://supabase.com/) – Authentication & database  
+- [Tailwind CSS](https://tailwindcss.com/) – Utility-first CSS framework  
+- [Lucide Icons](https://lucide.dev/) – SVG icons  
+- [Framer Motion](https://www.framer.com/motion/) – Animations  
+- [react-hot-toast](https://react-hot-toast.com/) – Toast notifications  
+
+---
+
+## Optimizations Implemented
+
+### 1. Performance Optimizations
+
+- **Inline Critical CSS** – Prevents FOUC and reduces LCP  
+- **Preload Fonts** – Only the necessary `Inter` font loaded for hero section  
+- **Minimal JS Bundle** – Hero + Features bundled under 50KB for first paint  
+- **Modern JS Only** – Removed legacy transpilation for modern browsers  
+- **Defer Non-Critical Requests** – No render-blocking scripts for first paint  
+- **Service Worker** – Caches static assets and improves offline performance  
+
+### 2. SEO & Accessibility
+
+- **Metadata** – Title, description, keywords, canonical, Open Graph & Twitter cards  
+- **Semantic HTML** – Single `<h1>` for Hero, proper `<h2>` for Features section  
+- **Accessibility** – Focus outlines, reduced motion for animations, color contrast  
+- **Lighthouse Scores** – Optimized for FCP, LCP, SEO, and accessibility  
+
+### 3. Next.js Config Optimizations
+
+- **`esmExternals: true`** – Prefer ESM modules for smaller bundle sizes  
+- **`productionBrowserSourceMaps: true`** – Enables source maps for easier debugging  
+- **`compress: true`** – Enable gzip/BR compression for JS/CSS  
+- **`reactStrictMode: true`** – React strict mode enabled  
+- **Standalone Build** – Optional smaller container builds (`output: "standalone"`)  
+
+### 4. Components Optimized
+
+- **Hero Component** – Optimized for LCP, minimal CSS animations, inline styles  
+- **Features Component** – Fade-in animations, minimal render-blocking JS  
+- **Header Component** – Mobile & desktop navigation optimized, theme toggle, subscription-aware user dropdown  
+
+---
