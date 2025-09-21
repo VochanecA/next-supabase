@@ -204,7 +204,7 @@ async function fetchUserTransactions(
 export default async function ProtectedPage(): Promise<JSX.Element> {
   // Create server-side Supabase client
   const supabase = await createClient();
-  
+
   // Get user claims using the same method as your middleware
   const { data, error } = await supabase.auth.getClaims();
 
@@ -214,7 +214,7 @@ export default async function ProtectedPage(): Promise<JSX.Element> {
   }
 
   const jwtClaims: JwtPayload = data.claims;
-  
+
   // Create user object from claims with proper type handling
   const user: UserClaims = {
     ...jwtClaims,
@@ -223,37 +223,53 @@ export default async function ProtectedPage(): Promise<JSX.Element> {
 
   // Ensure we have a user email for database queries
   if (!user.email) {
-    console.error('No email found in user claims');
+    console.error("No email found in user claims");
     redirect("/auth/login");
   }
 
-  // Fetch user-specific data server-side using email as the lookup key
   const userEmail = user.email;
-  
+
   try {
+    // Fetch customer_id
+    const { data: customer, error: customerError } = await supabase
+      .from("customers")
+      .select("customer_id")
+      .eq("email", userEmail)
+      .single();
+
+    if (customerError || !customer) {
+      console.error("Customer not found for email:", userEmail, customerError);
+    }
+
+    const customerId = customer?.customer_id;
+
+    // Fetch subscriptions and transactions in parallel
     const [subscriptions, transactions] = await Promise.all([
       fetchUserSubscriptions(supabase, userEmail),
-      fetchUserTransactions(supabase, userEmail)
+      fetchUserTransactions(supabase, userEmail),
     ]);
-    
-    // Always return the dashboard, which now handles empty data
+
+    // Return dashboard and pass customerId
     return (
-      <ProtectedDashboard 
+      <ProtectedDashboard
         user={user}
         subscriptions={subscriptions}
         transactions={transactions}
+        customerId={customerId} // <-- important for showing CustomerPortalButton
       />
     );
   } catch (fetchError) {
-    console.error('Error fetching user data:', fetchError);
-    
+    console.error("Error fetching user data:", fetchError);
+
     // Return dashboard with empty data if fetch fails
     return (
-      <ProtectedDashboard 
+      <ProtectedDashboard
         user={user}
         subscriptions={[]}
         transactions={[]}
+        customerId={undefined}
       />
     );
   }
 }
+

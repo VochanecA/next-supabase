@@ -1,7 +1,7 @@
-// app/customer-portal/route.ts
-import { CustomerPortal } from '@dodopayments/nextjs'
+import { CustomerPortal } from '@dodopayments/nextjs';
+import { getEnvironment, getRequiredApiKey } from '@/lib/env';
 
 export const GET = CustomerPortal({
-  bearerToken: process.env.DODO_PAYMENTS_API_KEY!,
-  environment: process.env.DODO_PAYMENTS_ENVIRONMENT,
-})
+  bearerToken: getRequiredApiKey(),
+  environment: getEnvironment(),
+});
