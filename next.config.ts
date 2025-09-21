@@ -12,27 +12,25 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactStrictMode: true, // ✅ React strict mode
 
-  // Experimental features
+  // Experimental & performance
   experimental: {
-    esmExternals: true,  // ✅ Prefer ESM builds of dependencies
-    optimizeCss: true,   // ✅ Inline critical CSS, lazy-load the rest
+    esmExternals: true,   // ✅ Prefer ESM builds for dependencies
+    optimizeCss: true,    // ✅ Inline critical CSS, lazy-load the rest
   },
 
-  // Output & compiler
-  output: "standalone", // ✅ Standalone build for smaller Docker/container images
+  output: "standalone",    // ✅ Standalone build for smaller Docker/container images
+
   compiler: {
-    styledComponents: true, // ✅ If using styled-components
+    styledComponents: true, // ✅ Support styled-components
   },
 
-  // Enable browser source maps for production debugging
-  productionBrowserSourceMaps: true, // ✅ Fix missing source maps warnings
+  compress: true,          // ✅ Enable gzip/BR compression
 
-  // Enable gzip/BR compression for JS/CSS assets
-  compress: true, 
+  productionBrowserSourceMaps: true, // ✅ Enable browser source maps in production
 
-  // Modern JS only for browsers that support ES modules
-  future: {
-    webpack5: true,  // ✅ Ensure modern build with Webpack 5
+  // Optional image optimization domains
+  images: {
+    domains: ["cdn.jsdelivr.net", "next-supabase-beta-nine.vercel.app"], // OG/CDN domains
   },
 
   // Optional security & SEO headers
@@ -49,17 +47,12 @@ const nextConfig: NextConfig = {
     ];
   },
 
-  // Optional image optimization domains
-  images: {
-    domains: ["cdn.jsdelivr.net", "next-supabase-beta-nine.vercel.app"], // OG/CDN domains
-  },
-
-  // Remove legacy polyfills automatically for modern browsers
-  // Next.js v14+ serves modern JS (ES modules) by default
-  // No `modern: true` needed, TypeScript safe
+  // Modern JS is automatically served to browsers by Next.js 14+ App Router
 };
 
 export default nextConfig;
+
+
 
 
 // Notes / Optimizations

@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { FC, useState, useEffect, useCallback, useRef, memo } from "react";
 import { usePathname } from "next/navigation";
-import { AuthButton } from "@/components/auth-button";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { Menu, X, Bell, User as UserIcon, ChevronDown, LayoutDashboard, Home, Moon, Sun } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Menu, X, Bell, User as UserIcon, ChevronDown, Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
+import { navItems, userMenuItems } from "./menu-items";
 
-const navItems = ["Why", "About", "Features", "Pricing"];
+// Lazy-load heavy client-only components
+const AuthButton = dynamic(() => import("@/components/auth-button").then(mod => mod.AuthButton), { ssr: false });
+const ThemeSwitcher = dynamic(() => import("@/components/theme-switcher").then(mod => mod.ThemeSwitcher), { ssr: false });
 
 const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -23,14 +25,19 @@ const Header: FC = () => {
 
   const checkUserSubscription = useCallback(async (email?: string) => {
     if (!email) return setHasActiveSubscription(false);
-
     try {
       const supabase = createClient();
-      const { data: customer } = await supabase.from("customers").select("customer_id").eq("email", email).maybeSingle();
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("customer_id")
+        .eq("email", email)
+        .maybeSingle();
       if (!customer?.customer_id) return setHasActiveSubscription(false);
-
-      const { data: subscriptions } = await supabase.from("subscriptions").select("subscription_status").eq("customer_id", customer.customer_id);
-      setHasActiveSubscription(subscriptions?.some((s) => s.subscription_status === "active") ?? false);
+      const { data: subscriptions } = await supabase
+        .from("subscriptions")
+        .select("subscription_status")
+        .eq("customer_id", customer.customer_id);
+      setHasActiveSubscription(subscriptions?.some(s => s.subscription_status === "active") ?? false);
     } catch {
       setHasActiveSubscription(false);
     }
@@ -42,12 +49,10 @@ const Header: FC = () => {
       setUser(session?.user ?? null);
       void checkUserSubscription(session?.user?.email);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);
       void checkUserSubscription(session?.user?.email);
     });
-
     return () => subscription.unsubscribe();
   }, [checkUserSubscription]);
 
@@ -59,24 +64,30 @@ const Header: FC = () => {
     }
   }, [pathname]);
 
-  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const toggleTheme = useCallback(() => setTheme(theme === "dark" ? "light" : "dark"), [theme, setTheme]);
 
   return (
     <>
-      <header className="w-full border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md h-16 flex items-center justify-center sticky top-0 z-50">
-        <div className="w-full max-w-6xl flex justify-between items-center px-6">
+      <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-white/80 dark:bg-gray-900/80 border-b border-gray-200 dark:border-gray-700 h-16 flex items-center justify-center">
+        <div className="max-w-6xl w-full flex justify-between items-center px-6">
           {/* Logo */}
           <Link href="/" className="flex items-center gap-2 group">
             <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center transform group-hover:scale-105 transition-transform">
               <Bell className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-orange-500 transition-colors">AI Notify</span>
+            <span className="text-lg font-bold text-gray-900 dark:text-white group-hover:text-orange-500 transition-colors">
+              AI Notify
+            </span>
           </Link>
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
-            {navItems.map((page) => (
-              <Link key={page} href={`/${page.toLowerCase()}`} className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium">
+            {navItems.map(page => (
+              <Link
+                key={page}
+                href={`/${page.toLowerCase()}`}
+                className="text-gray-700 dark:text-gray-300 hover:text-orange-500 dark:hover:text-orange-400 transition-colors font-medium"
+              >
                 {page}
               </Link>
             ))}
@@ -85,12 +96,21 @@ const Header: FC = () => {
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-4">
             <ThemeSwitcher />
-            {user ? <UserMenu user={user} hasActiveSubscription={hasActiveSubscription} isOpen={isUserDropdownOpen} toggle={() => setIsUserDropdownOpen((p) => !p)} /> : <AuthButton />}
+            {user ? (
+              <UserMenu
+                user={user}
+                hasActiveSubscription={hasActiveSubscription}
+                isOpen={isUserDropdownOpen}
+                toggle={() => setIsUserDropdownOpen(p => !p)}
+              />
+            ) : (
+              <AuthButton />
+            )}
           </div>
 
           {/* Mobile Menu Button */}
           <button
-            onClick={() => setIsMobileMenuOpen((p) => !p)}
+            onClick={() => setIsMobileMenuOpen(p => !p)}
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             aria-label="Toggle navigation menu"
           >
@@ -105,7 +125,7 @@ const Header: FC = () => {
           user={user}
           hasActiveSubscription={hasActiveSubscription}
           toggleTheme={toggleTheme}
-          theme={theme ?? "light"} // ✅ fallback if theme is undefined
+          theme={theme ?? "light"}
           closeMenu={() => setIsMobileMenuOpen(false)}
         />
       )}
@@ -128,26 +148,29 @@ const UserMenu: FC<{ user: SupabaseUser; hasActiveSubscription: boolean; isOpen:
         </div>
         <ChevronDown className={`w-4 h-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
       </button>
+
       {isOpen && (
         <div className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50">
           <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user.email}</p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Welcome back!</p>
           </div>
-          <Link
-            href="/protected"
-            className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <LayoutDashboard className="w-5 h-5" /> Dashboard
-          </Link>
-          {hasActiveSubscription && (
-            <Link
-              href="/protected/web-app"
-              className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <Home className="w-5 h-5" /> Web App
-            </Link>
-          )}
+
+          {userMenuItems.map(item => {
+            if (item.requiresSubscription && !hasActiveSubscription) return null;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="flex items-center gap-3 px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                {Icon && <Icon className="w-5 h-5" />}
+                {item.label}
+              </Link>
+            );
+          })}
+
           <div className="border-t border-gray-100 dark:border-gray-700 mt-2 pt-2 px-2">
             <AuthButton />
           </div>
@@ -158,7 +181,7 @@ const UserMenu: FC<{ user: SupabaseUser; hasActiveSubscription: boolean; isOpen:
 );
 UserMenu.displayName = "UserMenu";
 
-// Mobile Menu
+// Mobile Menu (memoized)
 const MobileMenu: FC<{ user: SupabaseUser | null; hasActiveSubscription: boolean; toggleTheme: () => void; theme: string; closeMenu: () => void }> = memo(
   ({ user, hasActiveSubscription, toggleTheme, theme, closeMenu }) => (
     <div className="md:hidden fixed inset-0 z-40 bg-white dark:bg-gray-900 pt-16 overflow-auto">
@@ -174,7 +197,7 @@ const MobileMenu: FC<{ user: SupabaseUser | null; hasActiveSubscription: boolean
         </div>
 
         <nav className="space-y-4">
-          {["Why", "About", "Features", "Pricing"].map((page) => (
+          {navItems.map(page => (
             <Link
               key={page}
               href={`/${page.toLowerCase()}`}
@@ -185,26 +208,23 @@ const MobileMenu: FC<{ user: SupabaseUser | null; hasActiveSubscription: boolean
               {page}
             </Link>
           ))}
-          {user && (
-            <>
-              <Link
-                href="/protected"
-                className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
-                onClick={closeMenu}
-              >
-                <LayoutDashboard className="w-5 h-5 text-gray-500 dark:text-gray-400" /> Dashboard
-              </Link>
-              {hasActiveSubscription && (
+
+          {user &&
+            userMenuItems.map(item => {
+              if (item.requiresSubscription && !hasActiveSubscription) return null;
+              const Icon = item.icon;
+              return (
                 <Link
-                  href="/protected/web-app"
+                  key={item.href}
+                  href={item.href}
                   className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
                   onClick={closeMenu}
                 >
-                  <Home className="w-5 h-5 text-gray-500 dark:text-gray-400" /> Web App
+                  {Icon && <Icon className="w-5 h-5 text-gray-500 dark:text-gray-400" />}
+                  {item.label}
                 </Link>
-              )}
-            </>
-          )}
+              );
+            })}
         </nav>
 
         {/* Theme Toggle */}
@@ -219,9 +239,7 @@ const MobileMenu: FC<{ user: SupabaseUser | null; hasActiveSubscription: boolean
             className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600 transition-colors"
           >
             <span
-              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                theme === "dark" ? "translate-x-6" : "translate-x-1"
-              }`}
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${theme === "dark" ? "translate-x-6" : "translate-x-1"}`}
             />
           </button>
         </div>

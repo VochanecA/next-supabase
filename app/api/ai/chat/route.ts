@@ -137,7 +137,7 @@ export async function POST(
         }
       }
     } else {
-      console.log("⚠️ Dev mode: skipping subscription check");
+      // console.log("⚠️ Dev mode: skipping subscription check");
     }
 
     // --- Parse body ---
