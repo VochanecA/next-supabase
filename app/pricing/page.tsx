@@ -16,7 +16,7 @@ interface Plan {
   popular?: boolean;
 }
 
-// PricingCard is intentionally local
+// PricingCard Component
 function PricingCard({ plan }: { readonly plan: Plan }): ReactElement {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
@@ -67,7 +67,7 @@ function PricingCard({ plan }: { readonly plan: Plan }): ReactElement {
         </div>
       )}
 
-      <div className="text-center mb-8">
+      <header className="text-center mb-8">
         <h3
           id={`${plan.title}-heading`}
           className="text-2xl font-bold text-gray-900 dark:text-white mb-2"
@@ -83,9 +83,9 @@ function PricingCard({ plan }: { readonly plan: Plan }): ReactElement {
           )}
         </div>
         <p className="text-gray-600 dark:text-gray-300 text-sm">{plan.description}</p>
-      </div>
+      </header>
 
-      <ul className="mb-8 space-y-3">
+      <ul className="mb-8 space-y-3" aria-label={`${plan.title} features`}>
         {plan.features.map((feature) => (
           <li key={feature} className="flex items-center">
             <Check className="w-5 h-5 text-green-500 mr-3 flex-shrink-0" aria-hidden="true" />
@@ -99,12 +99,12 @@ function PricingCard({ plan }: { readonly plan: Plan }): ReactElement {
       <button
         onClick={handleCheckout}
         disabled={loading}
-        className={`block w-full text-center py-3 px-6 rounded-lg font-semibold transition-colors ${
+        className={`block w-full text-center py-3 px-6 rounded-lg font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
           plan.popular
-            ? 'bg-orange-500 hover:bg-orange-600 text-white'
+            ? 'bg-orange-500 hover:bg-orange-600 text-white focus:ring-orange-500/50 focus:ring-offset-gray-50 dark:focus:ring-offset-gray-900'
             : plan.price === '€0'
-            ? 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
-            : 'bg-blue-600 hover:bg-blue-700 text-white'
+            ? 'bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-900 dark:text-white focus:ring-blue-500/50 focus:ring-offset-gray-50 dark:focus:ring-offset-gray-900'
+            : 'bg-blue-600 hover:bg-blue-700 text-white focus:ring-blue-500/50 focus:ring-offset-gray-50 dark:focus:ring-offset-gray-900'
         }`}
         aria-busy={loading}
       >
@@ -126,12 +126,12 @@ export default function PricingPage(): ReactElement {
           <h1 id="pricing-heading" className="text-4xl font-bold mb-4">
             Simple, Transparent Pricing
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
             Choose the plan that works best for you. All plans include access to our core AI features.
           </p>
         </section>
 
-        {/* Pricing Cards */}
+        {/* Pricing Cards Grid */}
         <section className="grid md:grid-cols-3 gap-8 mb-16" aria-label="Pricing plans">
           {importedPlans.map((plan) => (
             <PricingCard key={`${plan.title}-${plan.priceId}`} plan={plan} />
