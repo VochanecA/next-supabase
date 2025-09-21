@@ -1,6 +1,7 @@
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
-import { JSX } from "react";
+import type { JSX } from "react";
+import Link from "next/link";
 
 export default function About(): JSX.Element {
   return (
@@ -10,81 +11,111 @@ export default function About(): JSX.Element {
 
       {/* Main Content */}
       <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4">About AI Notify</h1>
-          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Learn more about our mission, team, and the technology behind our innovative notification platform.
+        {/* Intro Section */}
+        <section
+          className="text-center mb-12"
+          aria-labelledby="about-heading"
+        >
+          <h1
+            id="about-heading"
+            className="text-4xl font-extrabold mb-4 tracking-tight"
+          >
+            About AI Notify
+          </h1>
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto leading-relaxed">
+            Learn more about our mission, team, and the technology behind our
+            innovative notification platform.
           </p>
-        </div>
+        </section>
 
-        <div className="grid md:grid-cols-2 gap-12 mb-16">
+        {/* Mission & Technology Section */}
+        <section
+          className="grid md:grid-cols-2 gap-12 mb-16"
+          aria-label="Mission and Technology"
+        >
+          {/* Mission */}
           <div>
             <h2 className="text-2xl font-semibold mb-4">Our Mission</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              At AI Notify, we&apos;re dedicated to revolutionizing how businesses and individuals receive
-              and interact with notifications. Our AI-powered platform delivers intelligent, personalized
-              alerts that matter most to you.
+            <p className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+              At AI Notify, we&apos;re dedicated to revolutionizing how
+              businesses and individuals receive and interact with
+              notifications. Our AI-powered platform delivers intelligent,
+              personalized alerts that matter most to you.
             </p>
-            <p className="text-gray-600 dark:text-gray-300">
-              We believe in making technology work smarter for you, not harder. Our solutions are designed
-              to reduce noise and increase productivity through context-aware notifications.
+            <p className="text-gray-600 dark:text-gray-300 leading-relaxed">
+              We believe in making technology work smarter for you, not harder.
+              Our solutions are designed to reduce noise and increase
+              productivity through context-aware notifications.
             </p>
           </div>
 
+          {/* Technology */}
           <div>
             <h2 className="text-2xl font-semibold mb-4">Our Technology</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">
-              Built on cutting-edge technology stacks, AI Notify leverages modern frameworks and
-              cloud infrastructure to ensure reliability, scalability, and security.
+            <p className="text-gray-600 dark:text-gray-300 mb-6 leading-relaxed">
+              Built on cutting-edge technology stacks, AI Notify leverages
+              modern frameworks and cloud infrastructure to ensure reliability,
+              scalability, and security.
             </p>
-            <ul className="text-gray-600 dark:text-gray-300 space-y-2">
-              <li>• Next.js 14 with App Router</li>
-              <li>• Supabase for real-time database and authentication</li>
-              <li>• Tailwind CSS for responsive styling</li>
-              <li>• TypeScript for type safety</li>
-              <li>• AI/ML integration for smart notifications</li>
+            <ul className="text-gray-600 dark:text-gray-300 space-y-2 list-disc list-inside">
+              <li>Next.js 14 with App Router</li>
+              <li>Supabase for real-time database and authentication</li>
+              <li>Tailwind CSS for responsive styling</li>
+              <li>TypeScript for type safety</li>
+              <li>AI/ML integration for smart notifications</li>
             </ul>
           </div>
-        </div>
+        </section>
 
-        <div className="text-center">
-          <h2 className="text-2xl font-semibold mb-8">Our Team</h2>
+        {/* Team Section */}
+        <section className="text-center" aria-labelledby="team-heading">
+          <h2
+            id="team-heading"
+            className="text-2xl font-semibold mb-8"
+          >
+            Our Team
+          </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center">
-              <div className="w-24 h-24 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <span className="text-2xl font-bold">JD</span>
+            {[
+              { name: "John Doe", role: "Founder & CEO", initials: "JD" },
+              { name: "Jane Smith", role: "Lead Developer", initials: "JS" },
+              { name: "Alex Wilson", role: "AI Engineer", initials: "AW" },
+            ].map(({ name, role, initials }) => (
+              <div key={name} className="text-center">
+                <div
+                  className="w-24 h-24 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4 flex items-center justify-center"
+                  aria-hidden="true"
+                >
+                  <span className="text-2xl font-bold">{initials}</span>
+                </div>
+                <h3 className="font-semibold mb-2">{name}</h3>
+                <p className="text-gray-600 dark:text-gray-300 text-sm">
+                  {role}
+                </p>
               </div>
-              <h3 className="font-semibold mb-2">John Doe</h3>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">Founder & CEO</p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-24 h-24 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <span className="text-2xl font-bold">JS</span>
-              </div>
-              <h3 className="font-semibold mb-2">Jane Smith</h3>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">Lead Developer</p>
-            </div>
-
-            <div className="text-center">
-              <div className="w-24 h-24 bg-gray-300 dark:bg-gray-600 rounded-full mx-auto mb-4 flex items-center justify-center">
-                <span className="text-2xl font-bold">AW</span>
-              </div>
-              <h3 className="font-semibold mb-2">Alex Wilson</h3>
-              <p className="text-gray-600 dark:text-gray-300 text-sm">AI Engineer</p>
-            </div>
+            ))}
           </div>
-        </div>
+        </section>
 
-        <div className="text-center mt-16">
-          <h2 className="text-2xl font-semibold mb-6">Ready to Get Started?</h2>
-          <p className="text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto">
-            Join thousands of users who are already benefiting from our intelligent notification system.
+        {/* CTA Section */}
+        <section
+          className="text-center mt-16"
+          aria-labelledby="cta-heading"
+        >
+          <h2 id="cta-heading" className="text-2xl font-semibold mb-6">
+            Ready to Get Started?
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300 mb-8 max-w-2xl mx-auto leading-relaxed">
+            Join thousands of users who are already benefiting from our
+            intelligent notification system.
           </p>
-          <button className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-8 rounded-lg transition-colors">
+          <Link
+            href="/signup"
+            className="inline-block bg-blue-600 hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 text-white font-semibold py-3 px-8 rounded-lg transition-colors"
+          >
             Get Started
-          </button>
-        </div>
+          </Link>
+        </section>
       </main>
 
       {/* Footer */}
