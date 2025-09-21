@@ -5,7 +5,7 @@ import { Footer } from '@/components/footer';
 import { Check } from 'lucide-react';
 import { useState } from 'react';
 import { plans as importedPlans } from '@/lib/pricing-plans';
-import Link from 'next/link';
+import type { ReactElement } from 'react';
 
 interface Plan {
   title: string;
@@ -17,7 +17,7 @@ interface Plan {
 }
 
 // PricingCard is intentionally local
-function PricingCard({ plan }: { readonly plan: Plan }) {
+function PricingCard({ plan }: { readonly plan: Plan }): ReactElement {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
 
@@ -115,7 +115,7 @@ function PricingCard({ plan }: { readonly plan: Plan }) {
 }
 
 // --- Pricing Page ---
-export default function PricingPage() {
+export default function PricingPage(): ReactElement {
   return (
     <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
       <Header />
@@ -123,10 +123,7 @@ export default function PricingPage() {
       <main className="flex-1 w-full max-w-6xl mx-auto px-6 py-12">
         {/* Page Heading */}
         <section className="text-center mb-16" aria-labelledby="pricing-heading">
-          <h1
-            id="pricing-heading"
-            className="text-4xl font-bold mb-4"
-          >
+          <h1 id="pricing-heading" className="text-4xl font-bold mb-4">
             Simple, Transparent Pricing
           </h1>
           <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
