@@ -6,6 +6,7 @@
 // };
 
 // export default nextConfig;
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -13,7 +14,8 @@ const nextConfig: NextConfig = {
 
   // Experimental features
   experimental: {
-    esmExternals: true, // ✅ Prefer ESM builds of dependencies
+    esmExternals: true,  // ✅ Prefer ESM builds of dependencies
+    optimizeCss: true,   // ✅ Enable Critters (inline critical CSS, lazy-load the rest)
   },
 
   // Output & compiler
@@ -44,12 +46,11 @@ const nextConfig: NextConfig = {
 
   // Optional image optimization domains
   images: {
-    domains: ["cdn.jsdelivr.net", "example.com"], // replace with your OG/CDN domains
+    domains: ["cdn.jsdelivr.net", "next-suoabase-beta-nine.vercel.app"], // replace with your OG/CDN domains
   },
 };
 
 export default nextConfig;
-
 
 // Notes / Optimizations
 
