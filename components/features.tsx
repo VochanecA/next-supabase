@@ -1,17 +1,16 @@
-"use client";
-
-import type { FC, ReactElement } from "react";
-import { 
-  Bell, 
-  Brain, 
-  Shield, 
-  Zap, 
-  BarChart3, 
-  Users 
-} from "lucide-react";
+import dynamic from "next/dynamic";
 import { Inter } from "next/font/google";
+import type { FC, ReactElement } from "react";
 
 const inter = Inter({ subsets: ["latin"], display: "swap" });
+
+// Dynamically import Lucide icons to reduce initial bundle
+const Brain = dynamic(() => import("lucide-react").then(mod => mod.Brain), { ssr: false });
+const Bell = dynamic(() => import("lucide-react").then(mod => mod.Bell), { ssr: false });
+const Shield = dynamic(() => import("lucide-react").then(mod => mod.Shield), { ssr: false });
+const Zap = dynamic(() => import("lucide-react").then(mod => mod.Zap), { ssr: false });
+const BarChart3 = dynamic(() => import("lucide-react").then(mod => mod.BarChart3), { ssr: false });
+const Users = dynamic(() => import("lucide-react").then(mod => mod.Users), { ssr: false });
 
 interface FeatureItem {
   icon: ReactElement;
@@ -19,6 +18,7 @@ interface FeatureItem {
   description: string;
 }
 
+// Static feature list
 const features: readonly FeatureItem[] = [
   {
     icon: <Brain className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
@@ -83,9 +83,7 @@ export const Features: FC = () => {
                 <div className="flex-shrink-0 rounded-lg bg-indigo-50 p-3 dark:bg-indigo-900/20">
                   {icon}
                 </div>
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {title}
-                </h3>
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
               </div>
               <p className="mt-3 text-gray-600 dark:text-gray-300">{description}</p>
             </article>
