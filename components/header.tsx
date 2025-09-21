@@ -22,11 +22,6 @@ import { useTheme } from "next-themes";
 
 const navItems = ["Why", "About", "Features", "Pricing"];
 
-interface Customer {
-  customer_id: string;
-  email: string;
-}
-
 interface Subscription {
   subscription_status: string;
 }
