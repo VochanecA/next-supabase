@@ -9,24 +9,47 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  reactStrictMode: true, // ✅ Enable React strict mode
+  reactStrictMode: true, // ✅ React strict mode
 
-  // Prefer modern ES modules for dependencies to reduce bundle size
+  // Experimental features
   experimental: {
-    esmExternals: true, 
+    esmExternals: true, // ✅ Prefer ESM builds of dependencies
   },
 
-  // Production builds automatically minified with SWC
-  output: "standalone", // ✅ Optional: standalone build for smaller container images
+  // Output & compiler
+  output: "standalone", // ✅ Standalone build for smaller Docker/container images
   compiler: {
-    styledComponents: true, // ✅ if using styled-components
+    styledComponents: true, // ✅ If using styled-components
   },
 
-  // Modern JS: Next.js automatically serves ES modules to modern browsers
-  // No need for `modern: true` — it's removed in v13+ and TypeScript will complain
+  // Enable browser source maps for debugging in production
+  productionBrowserSourceMaps: true, // ✅ Fix missing source maps warning
+
+  // Enable asset compression
+  compress: true, // ✅ gzip/BR compression for JS/CSS assets
+
+  // Optional security & SEO headers
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
+
+  // Optional image optimization domains
+  images: {
+    domains: ["cdn.jsdelivr.net", "example.com"], // replace with your OG/CDN domains
+  },
 };
 
 export default nextConfig;
+
 
 // Notes / Optimizations
 
