@@ -2,19 +2,11 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FC, useEffect, useRef, useCallback } from "react";
+import { useState, type FC, useEffect, useCallback } from "react";
+import { usePathname } from "next/navigation";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
-import { 
-  Menu, 
-  X, 
-  Bell, 
-  User as UserIcon, 
-  Home, 
-  LayoutDashboard,
-  ChevronDown,
-  LogOut
-} from "lucide-react";
+import { Menu, X, Bell, User as UserIcon, ChevronDown, LayoutDashboard, Home, Moon, Sun } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createClient } from "@/lib/supabase/client";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
@@ -22,97 +14,100 @@ import { useTheme } from "next-themes";
 
 const navItems = ["Why", "About", "Features", "Pricing"];
 
-interface Subscription {
-  subscription_status: string;
-}
-
 export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const { theme, setTheme } = useTheme();
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
-  const fetchUserData = useCallback(async () => {
-    const supabase = createClient();
+  // Check user subscription status
+  const checkUserSubscription = useCallback(async (email: string | undefined) => {
+    if (!email) {
+      setHasActiveSubscription(false);
+      return;
+    }
     
     try {
-      const { data, error } = await supabase.auth.getUser();
-      
-      if (error) {
-        console.error("Failed to fetch user:", error);
+      const supabase = createClient();
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('customer_id')
+        .eq('email', email)
+        .maybeSingle();
+        
+      if (customerError) {
+        console.error("Customer fetch error:", customerError);
+        setHasActiveSubscription(false);
         return;
       }
       
-      setUser(data.user ?? null);
-      
-      // Check if user has active subscription
-      if (data.user?.email) {
-        const { data: customer, error: customerError } = await supabase
-          .from('customers')
-          .select('customer_id')
-          .eq('email', data.user.email)
-          .maybeSingle();
+      if (customer?.customer_id) {
+        const { data: subscriptions, error: subscriptionError } = await supabase
+          .from('subscriptions')
+          .select('subscription_status')
+          .eq('customer_id', customer.customer_id);
           
-        if (customerError) {
-          console.error("Failed to fetch customer:", customerError);
+        if (subscriptionError) {
+          console.error("Subscription fetch error:", subscriptionError);
+          setHasActiveSubscription(false);
           return;
         }
-        
-        if (customer) {
-          const { data: subscriptions, error: subscriptionsError } = await supabase
-            .from('subscriptions')
-            .select('subscription_status')
-            .eq('customer_id', customer.customer_id);
-            
-          if (subscriptionsError) {
-            console.error("Failed to fetch subscriptions:", subscriptionsError);
-            return;
-          }
           
-          const isActive = subscriptions?.some(
-            (sub: Subscription) => sub.subscription_status === 'active'
-          );
-          setHasActiveSubscription(isActive || false);
-        }
+        const isActive = subscriptions?.some(
+          (sub) => sub.subscription_status === 'active'
+        ) ?? false;
+        setHasActiveSubscription(isActive);
+      } else {
+        setHasActiveSubscription(false);
       }
     } catch (err) {
-      console.error("Failed to fetch user data:", err);
+      console.error("Failed to fetch subscription data:", err);
+      setHasActiveSubscription(false);
     }
   }, []);
 
+  // Set up auth state listener only once on component mount
   useEffect(() => {
-    // Only fetch user data if not already loaded
-    if (!user) {
-      fetchUserData();
-    }
-  }, [user, fetchUserData]);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsUserDropdownOpen(false);
+    const supabase = createClient();
+    
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      if (session?.user?.email) {
+        void checkUserSubscription(session.user.email);
+      } else {
+        setHasActiveSubscription(false);
       }
-    };
+    }).catch((error) => {
+      console.error("Failed to get session:", error);
+    });
 
-    document.addEventListener("mousedown", handleClickOutside);
+    // Listen for auth state changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      setUser(session?.user ?? null);
+      if (session?.user?.email) {
+        await checkUserSubscription(session.user.email);
+      } else {
+        setHasActiveSubscription(false);
+      }
+    });
+
+    // Cleanup subscription on unmount
     return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
+      subscription.unsubscribe();
     };
-  }, []);
+  }, [checkUserSubscription]);
+
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [pathname]);
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
   const toggleUserDropdown = (): void => setIsUserDropdownOpen((prev) => !prev);
   const toggleTheme = (): void => setTheme(theme === "dark" ? "light" : "dark");
-
-  const handleSignOut = async (): Promise<void> => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    setUser(null);
-    setIsUserDropdownOpen(false);
-  };
 
   return (
     <>
@@ -146,24 +141,24 @@ export const Header: FC = () => {
           <div className="hidden md:flex items-center gap-4">
             <ThemeSwitcher />
             
-            {/* User Dropdown for Desktop */}
             {user ? (
-              <div className="relative" ref={dropdownRef}>
+              <div className="relative">
                 <button
                   onClick={toggleUserDropdown}
                   className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                  aria-expanded={isUserDropdownOpen}
                   aria-label="User menu"
                   type="button"
                 >
                   <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
-                    <UserIcon className="w-5 h-5 text-orange-500" />
+                    <UserIcon className="w-4 h-4 text-orange-500" />
                   </div>
-                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300 max-w-[120px] truncate">
-                    {user.email}
-                  </span>
-                  <ChevronDown className={`w-4 h-4 text-gray-600 dark:text-gray-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                  <ChevronDown 
+                    className={`w-4 h-4 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} 
+                  />
                 </button>
                 
+                {/* User Dropdown Menu */}
                 <AnimatePresence>
                   {isUserDropdownOpen && (
                     <motion.div
@@ -171,43 +166,42 @@ export const Header: FC = () => {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -10 }}
                       transition={{ duration: 0.2 }}
-                      className="absolute right-0 top-full mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden z-50"
+                      className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-2 z-50"
+                      onMouseLeave={(): void => setIsUserDropdownOpen(false)}
                     >
-                      <div className="p-2">
-                        <div className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-gray-700 mb-2">
-                          Signed in as
-                        </div>
-                        <div className="px-3 py-1 text-sm font-medium text-gray-900 dark:text-white truncate mb-2">
+                      <div className="px-4 py-2 border-b border-gray-100 dark:border-gray-700">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                           {user.email}
-                        </div>
-                        
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          Welcome back!
+                        </p>
+                      </div>
+                      
+                      <Link
+                        href="/protected"
+                        className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        onClick={(): void => setIsUserDropdownOpen(false)}
+                      >
+                        <LayoutDashboard className="w-4 h-4" />
+                        Dashboard
+                      </Link>
+                      
+                      {hasActiveSubscription && (
                         <Link
-                          href="/protected"
-                          className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 text-sm"
-                          onClick={() => setIsUserDropdownOpen(false)}
+                          href="/protected/web-app"
+                          className="flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          onClick={(): void => setIsUserDropdownOpen(false)}
                         >
-                          <LayoutDashboard className="w-4 h-4" />
-                          Dashboard
+                          <Home className="w-4 h-4" />
+                          Web App
                         </Link>
-                        {hasActiveSubscription && (
-                          <Link
-                            href="/protected/web-app"
-                            className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 text-sm"
-                            onClick={() => setIsUserDropdownOpen(false)}
-                          >
-                            <Home className="w-4 h-4" />
-                            Web App
-                          </Link>
-                        )}
-                        
-                        <button
-                          onClick={handleSignOut}
-                          className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 w-full text-sm mt-2"
-                          type="button"
-                        >
-                          <LogOut className="w-4 h-4" />
-                          Sign Out
-                        </button>
+                      )}
+                      
+                      <div className="border-t border-gray-100 dark:border-gray-700 mt-2 pt-2">
+                        <div className="px-4 py-2">
+                          <AuthButton />
+                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -257,10 +251,14 @@ export const Header: FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-col text-sm font-medium text-gray-900 dark:text-white truncate">
-                    <AuthButton showEmailOnly />
+                    {user ? (
+                      <span>{user.email}</span>
+                    ) : (
+                      <AuthButton showEmailOnly />
+                    )}
                   </div>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Welcome back!
+                    {user ? "Welcome back!" : "Please sign in"}
                   </p>
                 </div>
               </div>
@@ -272,11 +270,16 @@ export const Header: FC = () => {
                     key={page}
                     href={`/${page.toLowerCase()}`}
                     className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
-                    onClick={() => setIsMobileMenuOpen(false)}
+                    onClick={(): void => setIsMobileMenuOpen(false)}
                   >
-                    <div className="w-6 h-6 flex items-center justify-center">
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0 }}
+                      animate={{ scale: 1, opacity: 1 }}
+                      transition={{ delay: 0.05 }}
+                      className="w-6 h-6 flex items-center justify-center"
+                    >
                       <span className="w-1 h-4 bg-orange-500 rounded-full" />
-                    </div>
+                    </motion.div>
                     {page}
                   </Link>
                 ))}
@@ -285,7 +288,7 @@ export const Header: FC = () => {
                     <Link
                       href="/protected"
                       className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
-                      onClick={() => setIsMobileMenuOpen(false)}
+                      onClick={(): void => setIsMobileMenuOpen(false)}
                     >
                       <LayoutDashboard className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                       Dashboard
@@ -294,20 +297,12 @@ export const Header: FC = () => {
                       <Link
                         href="/protected/web-app"
                         className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
-                        onClick={() => setIsMobileMenuOpen(false)}
+                        onClick={(): void => setIsMobileMenuOpen(false)}
                       >
                         <Home className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                         Web App
                       </Link>
                     )}
-                    <button
-                      onClick={handleSignOut}
-                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium w-full"
-                      type="button"
-                    >
-                      <LogOut className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                      Sign Out
-                    </button>
                   </>
                 )}
               </nav>
@@ -316,6 +311,11 @@ export const Header: FC = () => {
               <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div className="flex items-center gap-3">
+                    {theme === "dark" ? (
+                      <Sun className="w-5 h-5 text-yellow-500" />
+                    ) : (
+                      <Moon className="w-5 h-5 text-indigo-500" />
+                    )}
                     <span className="text-gray-900 dark:text-white font-medium">
                       {theme === "dark" ? "Light Mode" : "Dark Mode"}
                     </span>
@@ -324,7 +324,7 @@ export const Header: FC = () => {
                     onClick={toggleTheme}
                     className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600 transition-colors focus:outline-none"
                     type="button"
-                    aria-label="Toggle theme"
+                    aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
@@ -333,6 +333,11 @@ export const Header: FC = () => {
                     />
                   </button>
                 </div>
+              </div>
+
+              {/* Auth button in mobile menu */}
+              <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <AuthButton />
               </div>
             </div>
           </motion.div>
