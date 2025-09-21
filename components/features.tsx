@@ -1,3 +1,6 @@
+"use client";
+
+import type { FC, ReactElement } from "react";
 import { 
   Bell, 
   Brain, 
@@ -6,43 +9,58 @@ import {
   BarChart3, 
   Users 
 } from "lucide-react";
+import { Inter } from "next/font/google";
 
-export function Features() {
-  const features = [
-    {
-      icon: <Brain className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />,
-      title: "AI-Powered Intelligence",
-      description: "Advanced machine learning algorithms that understand your notification preferences and adapt over time.",
-    },
-    {
-      icon: <Bell className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />,
-      title: "Smart Notifications",
-      description: "Context-aware alerts that respect your focus time and deliver information when it matters most.",
-    },
-    {
-      icon: <Shield className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />,
-      title: "Enterprise Security",
-      description: "Bank-level encryption with SOC2 compliance to keep your data safe and secure.",
-    },
-    {
-      icon: <Zap className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />,
-      title: "Lightning Fast",
-      description: "Sub-10ms response times with global edge infrastructure for instant notifications.",
-    },
-    {
-      icon: <BarChart3 className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />,
-      title: "Advanced Analytics",
-      description: "Comprehensive dashboards to track notification performance and user engagement.",
-    },
-    {
-      icon: <Users className="h-8 w-8 text-indigo-600 dark:text-indigo-400" />,
-      title: "Team Collaboration",
-      description: "Seamless team management with role-based access and shared notification workflows.",
-    },
-  ] as const;
+const inter = Inter({ subsets: ["latin"], display: "swap" });
 
+interface FeatureItem {
+  icon: ReactElement;
+  title: string;
+  description: string;
+}
+
+const features: readonly FeatureItem[] = [
+  {
+    icon: <Brain className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
+    title: "AI-Powered Intelligence",
+    description:
+      "Advanced machine learning algorithms that understand your notification preferences and adapt over time.",
+  },
+  {
+    icon: <Bell className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
+    title: "Smart Notifications",
+    description:
+      "Context-aware alerts that respect your focus time and deliver information when it matters most.",
+  },
+  {
+    icon: <Shield className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
+    title: "Enterprise Security",
+    description:
+      "Bank-level encryption with SOC2 compliance to keep your data safe and secure.",
+  },
+  {
+    icon: <Zap className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
+    title: "Lightning Fast",
+    description:
+      "Sub-10ms response times with global edge infrastructure for instant notifications.",
+  },
+  {
+    icon: <BarChart3 className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
+    title: "Advanced Analytics",
+    description:
+      "Comprehensive dashboards to track notification performance and user engagement.",
+  },
+  {
+    icon: <Users className="h-8 w-8 text-indigo-600 dark:text-indigo-400" aria-hidden="true" />,
+    title: "Team Collaboration",
+    description:
+      "Seamless team management with role-based access and shared notification workflows.",
+  },
+];
+
+export const Features: FC = () => {
   return (
-    <section className="py-24 bg-white dark:bg-gray-800">
+    <section className={`py-24 bg-white dark:bg-gray-800 ${inter.className}`}>
       <div className="container mx-auto px-4 sm:px-6 lg:px-8">
         {/* Section Header */}
         <div className="mx-auto max-w-3xl text-center">
@@ -56,23 +74,21 @@ export function Features() {
 
         {/* Features Grid */}
         <div className="mt-16 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature, index) => (
-            <div
-              key={index}
+          {features.map(({ icon, title, description }) => (
+            <article
+              key={title}
               className="group relative rounded-xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 hover:border-indigo-300 hover:shadow-md dark:border-gray-700 dark:bg-gray-900 dark:hover:border-indigo-700"
             >
               <div className="flex items-center space-x-4">
                 <div className="flex-shrink-0 rounded-lg bg-indigo-50 p-3 dark:bg-indigo-900/20">
-                  {feature.icon}
+                  {icon}
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                  {feature.title}
+                  {title}
                 </h3>
               </div>
-              <p className="mt-3 text-gray-600 dark:text-gray-300">
-                {feature.description}
-              </p>
-            </div>
+              <p className="mt-3 text-gray-600 dark:text-gray-300">{description}</p>
+            </article>
           ))}
         </div>
 
@@ -93,4 +109,4 @@ export function Features() {
       </div>
     </section>
   );
-}
+};
