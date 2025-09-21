@@ -1,10 +1,10 @@
-// app/layout.tsx
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "react-hot-toast";
 import "./globals.css";
 import { Inter } from "next/font/google";
 
-const inter = Inter({ subsets: ["latin"], display: "swap", weight: "400", preload: true });
+// Use variable option instead of manual font file
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
 const criticalCSS = `
   *, *::before, *::after { box-sizing: border-box; }
@@ -69,19 +69,10 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning className={inter.className}>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* Inline critical CSS for FOUC prevention */}
         <style dangerouslySetInnerHTML={{ __html: criticalCSS }} />
-
-        {/* Preload font to reduce LCP */}
-        <link
-          rel="preload"
-          href="/fonts/inter-var.woff2"
-          as="font"
-          type="font/woff2"
-          crossOrigin=""
-        />
 
         {/* SEO & performance meta tags */}
         <link rel="canonical" href={metadata.canonical} />
