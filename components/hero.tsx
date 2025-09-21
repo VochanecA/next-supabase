@@ -3,25 +3,73 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import type { FC } from "react";
+import { Inter } from "next/font/google";
+
+const inter = Inter({ subsets: ["latin"], display: "swap" });
+
+interface StatItem {
+  value: string;
+  label: string;
+}
+
+const stats: StatItem[] = [
+  { value: "99.9%", label: "Uptime Reliability" },
+  { value: "10ms", label: "Average Response" },
+  { value: "24/7", label: "AI Monitoring" },
+];
+
+// Simple grid pattern (minified SVG string)
+const GridPattern = ({ dark = false }: { dark?: boolean }) => (
+  <svg
+    className="absolute inset-0 w-full h-full"
+    aria-hidden="true"
+    role="presentation"
+    xmlns="http://www.w3.org/2000/svg"
+    preserveAspectRatio="none"
+  >
+    <defs>
+      <pattern
+        id={dark ? "grid-dark" : "grid-light"}
+        width="40"
+        height="40"
+        patternUnits="userSpaceOnUse"
+      >
+        <path
+          d="M40 0H0V40"
+          fill="none"
+          stroke={dark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)"}
+          strokeWidth="1"
+        />
+      </pattern>
+    </defs>
+    <rect width="100%" height="100%" fill={`url(#${dark ? "grid-dark" : "grid-light"})`} />
+  </svg>
+);
 
 export const Hero: FC = () => {
+  const shouldReduceMotion = useReducedMotion();
+
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-24 md:py-32">
+    <section
+      className={`relative overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-cyan-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 py-24 md:py-32 ${inter.className}`}
+    >
       {/* Background Pattern */}
-      <div
-        className="absolute inset-0 z-0"
-        aria-hidden="true"
-      >
-        <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,transparent)] dark:bg-[url('/grid-dark.svg')]" />
+      <div className="absolute inset-0 z-0 [mask-image:linear-gradient(180deg,white,transparent)]">
+        <div className="hidden dark:block">
+          <GridPattern dark />
+        </div>
+        <div className="block dark:hidden">
+          <GridPattern />
+        </div>
       </div>
 
       <div className="container relative z-10 mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-4xl text-center">
           {/* Main Heading */}
           <motion.h1
-            initial={{ opacity: 0, y: 30 }}
+            initial={!shouldReduceMotion ? { opacity: 0, y: 30 } : { opacity: 0 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, ease: "easeOut" }}
             className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-5xl md:text-6xl"
@@ -34,7 +82,7 @@ export const Hero: FC = () => {
 
           {/* Subheading */}
           <motion.p
-            initial={{ opacity: 0, y: 20 }}
+            initial={!shouldReduceMotion ? { opacity: 0, y: 20 } : { opacity: 0 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
             className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-gray-600 dark:text-gray-300"
@@ -45,15 +93,15 @@ export const Hero: FC = () => {
 
           {/* CTA Buttons */}
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={!shouldReduceMotion ? { opacity: 0, y: 20 } : { opacity: 0 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.4, duration: 0.5 }}
             className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4"
           >
             <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link href="/dashboard">
+              <Link href="/dashboard" aria-label="Get started with AI-powered notifications">
                 Get Started
-                <ArrowRight className="ml-2 h-4 w-4" />
+                <ArrowRight className="ml-2 h-4 w-4" aria-hidden="true" />
               </Link>
             </Button>
             <Button
@@ -62,7 +110,9 @@ export const Hero: FC = () => {
               className="w-full sm:w-auto"
               asChild
             >
-              <Link href="/features">View Features</Link>
+              <Link href="/features" aria-label="View features of AI-powered notifications">
+                View Features
+              </Link>
             </Button>
           </motion.div>
 
@@ -80,22 +130,21 @@ export const Hero: FC = () => {
             }}
             className="mt-16 grid grid-cols-1 gap-8 sm:grid-cols-3"
           >
-            {[
-              { value: "99.9%", label: "Uptime Reliability" },
-              { value: "10ms", label: "Average Response" },
-              { value: "24/7", label: "AI Monitoring" },
-            ].map(({ value, label }) => (
+            {stats.map(({ value, label }) => (
               <motion.div
                 key={label}
-                variants={{ hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0 } }}
+                variants={{
+                  hidden: { opacity: 0, y: 15 },
+                  visible: { opacity: 1, y: 0 },
+                }}
                 className="flex flex-col items-center"
               >
-                <div className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
+                <h2 className="text-3xl font-bold text-indigo-600 dark:text-indigo-400">
                   {value}
-                </div>
-                <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                </h2>
+                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   {label}
-                </div>
+                </p>
               </motion.div>
             ))}
           </motion.div>
@@ -106,6 +155,7 @@ export const Hero: FC = () => {
       <div
         className="absolute bottom-0 left-0 right-0 h-16 bg-gradient-to-t from-white dark:from-gray-900 to-transparent"
         aria-hidden="true"
+        role="presentation"
       />
     </section>
   );
