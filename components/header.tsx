@@ -205,7 +205,10 @@ export const Header: FC = () => {
                       
                       <div className="border-t border-gray-100 dark:border-gray-700 mt-2 pt-2">
                         <div className="px-2">
-                          <AuthButton className="py-2.5 px-4 text-sm w-full justify-center" />
+                          {/* Wrap AuthButton in a div with custom styling instead of passing className */}
+                          <div className="py-2.5 px-4 text-sm w-full justify-center">
+                            <AuthButton />
+                          </div>
                         </div>
                       </div>
                     </motion.div>
@@ -343,7 +346,10 @@ export const Header: FC = () => {
               {/* Auth button in mobile menu - Made larger */}
               <div className="mt-6 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex flex-col gap-3">
-                  <AuthButton className="py-3 px-4 text-base justify-center" />
+                  {/* Wrap AuthButton in a div with custom styling instead of passing className */}
+                  <div className="py-3 px-4 text-base justify-center">
+                    <AuthButton />
+                  </div>
                 </div>
               </div>
             </div>
