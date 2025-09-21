@@ -1,6 +1,5 @@
-// app/layout.tsx
 import { ThemeProvider } from "next-themes";
-import { Toaster } from "react-hot-toast";
+import dynamic from "next/dynamic";
 import "./globals.css";
 import { Inter } from "next/font/google";
 
@@ -42,6 +41,9 @@ const criticalCSS = `
   }
 `;
 
+// Lazy-load client-only components
+const Toaster = dynamic(() => import("react-hot-toast").then(mod => mod.Toaster), { ssr: false });
+
 export const metadata = {
   title: "AI Notify – Smart AI-Powered Notifications",
   description: "AI Notify delivers context-aware notifications that reduce noise and improve productivity.",
@@ -71,10 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning className={inter.className}>
       <head>
-        {/* Inline critical CSS for FOUC prevention */}
         <style dangerouslySetInnerHTML={{ __html: criticalCSS }} />
-
-        {/* Preload font to reduce LCP */}
         <link
           rel="preload"
           href="/fonts/inter-var.woff2"
@@ -82,14 +81,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="font/woff2"
           crossOrigin=""
         />
-
-        {/* SEO & performance meta tags */}
         <link rel="canonical" href={metadata.canonical} />
         <meta name="description" content={metadata.description} />
         <meta name="keywords" content={metadata.keywords} />
         <meta name="robots" content={metadata.robots} />
-
-        {/* Open Graph */}
         <meta property="og:title" content={metadata.openGraph.title} />
         <meta property="og:description" content={metadata.openGraph.description} />
         <meta property="og:type" content={metadata.openGraph.type} />
@@ -98,14 +93,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta property="og:image:width" content={metadata.openGraph.images[0].width.toString()} />
         <meta property="og:image:height" content={metadata.openGraph.images[0].height.toString()} />
         <meta property="og:image:alt" content={metadata.openGraph.images[0].alt} />
-
-        {/* Twitter Card */}
         <meta name="twitter:card" content={metadata.twitter.card} />
         <meta name="twitter:title" content={metadata.twitter.title} />
         <meta name="twitter:description" content={metadata.twitter.description} />
         <meta name="twitter:image" content={metadata.twitter.images[0]} />
       </head>
-
       <body className="bg-white dark:bg-gray-900 font-sans antialiased">
         <ThemeProvider
           attribute="class"
@@ -115,7 +107,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           storageKey="ai-notify-theme"
         >
           {children}
-
+          {/* Lazy-loaded Toaster */}
           <Toaster
             position="top-right"
             reverseOrder={false}

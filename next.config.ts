@@ -15,7 +15,7 @@ const nextConfig: NextConfig = {
   // Experimental features
   experimental: {
     esmExternals: true,  // ✅ Prefer ESM builds of dependencies
-    optimizeCss: true,   // ✅ Enable Critters (inline critical CSS, lazy-load the rest)
+    optimizeCss: true,   // ✅ Inline critical CSS, lazy-load the rest
   },
 
   // Output & compiler
@@ -24,11 +24,16 @@ const nextConfig: NextConfig = {
     styledComponents: true, // ✅ If using styled-components
   },
 
-  // Enable browser source maps for debugging in production
-  productionBrowserSourceMaps: true, // ✅ Fix missing source maps warning
+  // Enable browser source maps for production debugging
+  productionBrowserSourceMaps: true, // ✅ Fix missing source maps warnings
 
-  // Enable asset compression
-  compress: true, // ✅ gzip/BR compression for JS/CSS assets
+  // Enable gzip/BR compression for JS/CSS assets
+  compress: true, 
+
+  // Modern JS only for browsers that support ES modules
+  future: {
+    webpack5: true,  // ✅ Ensure modern build with Webpack 5
+  },
 
   // Optional security & SEO headers
   async headers() {
@@ -46,11 +51,16 @@ const nextConfig: NextConfig = {
 
   // Optional image optimization domains
   images: {
-    domains: ["cdn.jsdelivr.net", "next-suoabase-beta-nine.vercel.app"], // replace with your OG/CDN domains
+    domains: ["cdn.jsdelivr.net", "next-supabase-beta-nine.vercel.app"], // OG/CDN domains
   },
+
+  // Remove legacy polyfills automatically for modern browsers
+  // Next.js v14+ serves modern JS (ES modules) by default
+  // No `modern: true` needed, TypeScript safe
 };
 
 export default nextConfig;
+
 
 // Notes / Optimizations
 
