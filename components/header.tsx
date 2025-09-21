@@ -2,8 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, type FC, useEffect, useRef } from "react";
-import { usePathname } from "next/navigation";
+import { useState, type FC, useEffect, useRef, useCallback } from "react";
 import { AuthButton } from "@/components/auth-button";
 import { ThemeSwitcher } from "@/components/theme-switcher";
 import { 
@@ -11,8 +10,6 @@ import {
   X, 
   Bell, 
   User as UserIcon, 
-  Moon, 
-  Sun, 
   Home, 
   LayoutDashboard,
   ChevronDown,
@@ -25,53 +22,77 @@ import { useTheme } from "next-themes";
 
 const navItems = ["Why", "About", "Features", "Pricing"];
 
+interface Customer {
+  customer_id: string;
+  email: string;
+}
+
+interface Subscription {
+  subscription_status: string;
+}
+
 export const Header: FC = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const { theme, setTheme } = useTheme();
-  const pathname = usePathname();
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
+  const fetchUserData = useCallback(async () => {
     const supabase = createClient();
-
-    const fetchUser = async () => {
-      try {
-        const { data } = await supabase.auth.getUser();
-        setUser(data.user ?? null);
-        
-        // Check if user has active subscription
-        if (data.user) {
-          const { data: customer } = await supabase
-            .from('customers')
-            .select('customer_id')
-            .eq('email', data.user.email)
-            .single();
-            
-          if (customer) {
-            const { data: subscriptions } = await supabase
-              .from('subscriptions')
-              .select('subscription_status')
-              .eq('customer_id', customer.customer_id);
-              
-            const isActive = subscriptions?.some(
-              sub => sub.subscription_status === 'active'
-            );
-            setHasActiveSubscription(isActive || false);
-          }
-        }
-      } catch (err) {
-        console.error("Failed to fetch user data:", err);
+    
+    try {
+      const { data, error } = await supabase.auth.getUser();
+      
+      if (error) {
+        console.error("Failed to fetch user:", error);
+        return;
       }
-    };
+      
+      setUser(data.user ?? null);
+      
+      // Check if user has active subscription
+      if (data.user?.email) {
+        const { data: customer, error: customerError } = await supabase
+          .from('customers')
+          .select('customer_id')
+          .eq('email', data.user.email)
+          .maybeSingle();
+          
+        if (customerError) {
+          console.error("Failed to fetch customer:", customerError);
+          return;
+        }
+        
+        if (customer) {
+          const { data: subscriptions, error: subscriptionsError } = await supabase
+            .from('subscriptions')
+            .select('subscription_status')
+            .eq('customer_id', customer.customer_id);
+            
+          if (subscriptionsError) {
+            console.error("Failed to fetch subscriptions:", subscriptionsError);
+            return;
+          }
+          
+          const isActive = subscriptions?.some(
+            (sub: Subscription) => sub.subscription_status === 'active'
+          );
+          setHasActiveSubscription(isActive || false);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch user data:", err);
+    }
+  }, []);
 
+  useEffect(() => {
     // Only fetch user data if not already loaded
     if (!user) {
-      fetchUser();
+      fetchUserData();
     }
-  }, []); // Empty dependency array to run only once
+  }, [user, fetchUserData]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -89,9 +110,9 @@ export const Header: FC = () => {
 
   const toggleMenu = (): void => setIsMobileMenuOpen((prev) => !prev);
   const toggleUserDropdown = (): void => setIsUserDropdownOpen((prev) => !prev);
-  const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  const toggleTheme = (): void => setTheme(theme === "dark" ? "light" : "dark");
 
-  const handleSignOut = async () => {
+  const handleSignOut = async (): Promise<void> => {
     const supabase = createClient();
     await supabase.auth.signOut();
     setUser(null);
@@ -137,6 +158,7 @@ export const Header: FC = () => {
                   onClick={toggleUserDropdown}
                   className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                   aria-label="User menu"
+                  type="button"
                 >
                   <div className="w-8 h-8 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center">
                     <UserIcon className="w-5 h-5 text-orange-500" />
@@ -186,6 +208,7 @@ export const Header: FC = () => {
                         <button
                           onClick={handleSignOut}
                           className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors text-gray-700 dark:text-gray-300 w-full text-sm mt-2"
+                          type="button"
                         >
                           <LogOut className="w-4 h-4" />
                           Sign Out
@@ -206,6 +229,7 @@ export const Header: FC = () => {
             className="md:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             aria-label="Toggle menu"
             whileTap={{ scale: 0.9 }}
+            type="button"
           >
             <motion.div
               key={isMobileMenuOpen ? "close" : "open"}
@@ -255,14 +279,9 @@ export const Header: FC = () => {
                     className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium"
                     onClick={() => setIsMobileMenuOpen(false)}
                   >
-                    <motion.div
-                      initial={{ scale: 0.8, opacity: 0 }}
-                      animate={{ scale: 1, opacity: 1 }}
-                      transition={{ delay: 0.05 }}
-                      className="w-6 h-6 flex items-center justify-center"
-                    >
-                      <span className="w-1 h-4 bg-orange-500 rounded-full"></span>
-                    </motion.div>
+                    <div className="w-6 h-6 flex items-center justify-center">
+                      <span className="w-1 h-4 bg-orange-500 rounded-full" />
+                    </div>
                     {page}
                   </Link>
                 ))}
@@ -289,6 +308,7 @@ export const Header: FC = () => {
                     <button
                       onClick={handleSignOut}
                       className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors text-gray-900 dark:text-white font-medium w-full"
+                      type="button"
                     >
                       <LogOut className="w-5 h-5 text-gray-500 dark:text-gray-400" />
                       Sign Out
@@ -301,11 +321,6 @@ export const Header: FC = () => {
               <div className="mt-8 pt-6 border-t border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
                   <div className="flex items-center gap-3">
-                    {theme === "dark" ? (
-                      <Sun className="w-5 h-5 text-yellow-500" />
-                    ) : (
-                      <Moon className="w-5 h-5 text-indigo-500" />
-                    )}
                     <span className="text-gray-900 dark:text-white font-medium">
                       {theme === "dark" ? "Light Mode" : "Dark Mode"}
                     </span>
@@ -313,6 +328,8 @@ export const Header: FC = () => {
                   <button
                     onClick={toggleTheme}
                     className="relative inline-flex h-6 w-11 items-center rounded-full bg-gray-300 dark:bg-gray-600 transition-colors focus:outline-none"
+                    type="button"
+                    aria-label="Toggle theme"
                   >
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
