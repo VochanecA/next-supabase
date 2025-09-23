@@ -12,7 +12,8 @@ import {
   ChevronRightIcon,
 } from 'lucide-react';
 import CustomerPortalButton from './CustomerPortalButton';
-import CustomerWalletButton from './CustomerWalletButton';
+import { CancelSubscriptionButton } from "@/components/CancelSubscriptionButton";
+
 import ManagePlanButton from './ManagePlanButton';
 
 interface Product {
@@ -286,12 +287,11 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
       />
     )}
 
-    {/* Customer Wallet Button - Only show if customerId exists */}
-    {customerId && (
-      <CustomerWalletButton 
-        customerId={customerId}
-      />
-    )}
+    {/* Cancel Subscription Button - Only show if there are active subscriptions */}
+{subscriptions.length > 0 && (
+  <CancelSubscriptionButton subscriptionId={subscriptions[0].subscription_id} />
+)}
+
 
     {/* Customer Portal Button - Only show if customerId exists */}
     {customerId && (

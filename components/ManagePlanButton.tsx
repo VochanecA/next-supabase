@@ -130,12 +130,18 @@ const handlePlanChange = async (subscriptionId: string, newProductId: string): P
     setLoading(false);
   }
 };
-  const formatAmount = (amount: number, currency: string): string => {
-    return new Intl.NumberFormat('en-US', { 
-      style: 'currency', 
-      currency: currency.toUpperCase() 
-    }).format(amount / 100);
-  };
+  // const formatAmount = (amount: number, currency: string): string => {
+  //   return new Intl.NumberFormat('en-US', { 
+  //     style: 'currency', 
+  //     currency: currency.toUpperCase() 
+  //   }).format(amount / 100);
+  // };
+const formatAmount = (amount: number, currency: string): string => {
+  return new Intl.NumberFormat('en-US', { 
+    style: 'currency', 
+    currency: currency.toUpperCase() 
+  }).format(amount);
+};
 
   return (
     <>

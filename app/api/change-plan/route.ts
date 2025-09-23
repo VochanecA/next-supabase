@@ -36,9 +36,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Use correct base URL based on environment
-    const baseUrl = environment === 'live_mode' 
-      ? 'https://api.live.dodopayments.com'  // Fixed URL
-      : 'https://api.test.dodopayments.com'; // Fixed URL
+const baseUrl =
+  environment === 'live_mode'
+    ? 'https://live.dodopayments.com'
+    : 'https://test.dodopayments.com';
+
 
     // Log the request for debugging
     console.log('Changing plan for subscription:', subscription_id);
