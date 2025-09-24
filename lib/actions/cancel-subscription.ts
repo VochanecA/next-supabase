@@ -1,8 +1,7 @@
-// lib/actions/cancel-subscription.ts (alternative with response validation)
 "use server";
 
 import { dodoClient } from "@/lib/dodo-payments/client";
-import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service-client";
 
 export type CancelOption = "next_billing" | "immediately";
 
@@ -11,72 +10,71 @@ interface CancelSubscriptionResult {
   error?: string;
 }
 
-export async function cancelSubscription(
-  subscriptionId: string, 
-  option?: CancelOption
-): Promise<CancelSubscriptionResult> {
-  const supabase = await createClient();
+interface DodoSubscription {
+  subscription_id: string;
+  status?: string;
+  cancel_at_next_billing_date?: boolean;
+  cancelled_at?: string | null;
+  [key: string]: unknown;
+}
 
+type DodoUpdateResponse =
+  | DodoSubscription
+  | { subscription: DodoSubscription }
+  | { data: DodoSubscription }
+  | Record<string, unknown>;
+
+function extractSubscriptionData(response: DodoUpdateResponse): DodoSubscription | null {
+  if (!response) return null;
+  if ("subscription_id" in response) return response as DodoSubscription;
+  if ("subscription" in response) return (response as { subscription: DodoSubscription }).subscription;
+  if ("data" in response) return (response as { data: DodoSubscription }).data;
+  return null;
+}
+
+export async function cancelSubscription(
+  subscriptionId: string,
+  option: CancelOption = "next_billing"
+): Promise<CancelSubscriptionResult> {
   if (!subscriptionId) {
-    return {
-      success: false,
-      error: "Subscription ID is required",
-    };
+    return { success: false, error: "Subscription ID is required" };
   }
 
+  // Use service client (server-only) — must use SUPABASE_SERVICE_ROLE_KEY
+  const supabase = createServiceClient();
+
   try {
-    let dodoResponse;
-    let supabaseUpdate: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
+    // Call Dodo API
+    const dodoResponse: DodoUpdateResponse = await dodoClient.updateSubscription(subscriptionId, {
+      cancel_at_next_billing_date: option !== "immediately",
+    });
 
-    if (option === "immediately") {
-      // Cancel immediately
-      dodoResponse = await dodoClient.updateSubscription(subscriptionId, {
-        cancel_at_next_billing_date: false,
-      });
+    console.log("Dodo response (raw):", JSON.stringify(dodoResponse, null, 2));
 
-      // Validate Dodo response
-      if (!dodoResponse?.id) {
-        throw new Error("Invalid response from payment provider");
-      }
+    const subscriptionData = extractSubscriptionData(dodoResponse);
 
-      supabaseUpdate = {
-        ...supabaseUpdate,
-        cancel_at_next_billing_date: false,
-        status: "canceled",
-        canceled_at: new Date().toISOString(),
-      };
-    } else {
-      // Default: cancel at next billing period
-      dodoResponse = await dodoClient.updateSubscription(subscriptionId, {
-        cancel_at_next_billing_date: true,
-      });
-
-      // Validate Dodo response
-      if (!dodoResponse?.id) {
-        throw new Error("Invalid response from payment provider");
-      }
-
-      supabaseUpdate = {
-        ...supabaseUpdate,
-        cancel_at_next_billing_date: true,
-        status: "active", // Keep active until next billing
-      };
+    if (!subscriptionData?.subscription_id) {
+      throw new Error(`Invalid response from payment provider: ${JSON.stringify(dodoResponse)}`);
     }
 
-    // Update Supabase
+    const supabaseUpdate: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+      subscription_status: option === "immediately" ? "canceled" : "active",
+      cancel_at_next_billing_date: option !== "immediately", // boolean
+    };
+
     const { error } = await supabase
       .from("subscriptions")
       .update(supabaseUpdate)
-      .eq("subscription_id", subscriptionId);
+      .eq("subscription_id", subscriptionData.subscription_id);
 
     if (error) {
       throw new Error(`Supabase update failed: ${error.message}`);
     }
 
+    console.log(`Subscription ${subscriptionData.subscription_id} updated successfully in Supabase`);
     return { success: true };
-  } catch (err) {
+  } catch (err: unknown) {
     console.error("Cancel subscription error:", err);
     return {
       success: false,

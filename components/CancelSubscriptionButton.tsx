@@ -1,9 +1,11 @@
-// components/CancelSubscriptionButton.tsx
 "use client";
 
 import { useState } from "react";
 import { XCircleIcon } from "lucide-react";
-import { cancelSubscription, type CancelOption } from "@/lib/actions/cancel-subscription";
+import type { CancelOption } from "@/lib/actions/cancel-subscription";
+
+// Use the server action via import type only
+import { cancelSubscription } from "@/lib/actions/cancel-subscription";
 
 interface CancelSubscriptionButtonProps {
   subscriptionId: string;
@@ -12,13 +14,13 @@ interface CancelSubscriptionButtonProps {
 export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> = ({
   subscriptionId,
 }) => {
-  const [loading, setLoading] = useState<boolean>(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<boolean>(false);
-  const [showModal, setShowModal] = useState<boolean>(false);
+  const [success, setSuccess] = useState(false);
+  const [showModal, setShowModal] = useState(false);
   const [selectedOption, setSelectedOption] = useState<CancelOption>("next_billing");
 
-  const handleCancel = async (): Promise<void> => {
+  const handleCancel = async () => {
     if (!subscriptionId) {
       setError("No subscription selected.");
       return;
@@ -28,6 +30,7 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
     setError(null);
 
     try {
+      // Call server action
       const result = await cancelSubscription(subscriptionId, selectedOption);
 
       if (!result.success) {
@@ -37,37 +40,17 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
         setShowModal(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unknown error occurred.");
+      setError(err instanceof Error ? err.message : "Unknown error occurred");
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleOpenModal = (): void => {
-    setShowModal(true);
-    setError(null);
-  };
-
-  const handleCloseModal = (): void => {
-    setShowModal(false);
-    setError(null);
-  };
-
-  const handleOptionChange = (option: CancelOption): void => {
-    setSelectedOption(option);
-  };
-
-  const getButtonText = (): string => {
-    if (loading) return "Cancelling...";
-    if (success) return "Cancelled";
-    return "Cancel Subscription";
   };
 
   return (
     <div className="flex flex-col items-center w-full">
       <button
         type="button"
-        onClick={handleOpenModal}
+        onClick={() => setShowModal(true)}
         disabled={loading || success}
         className={`flex items-center justify-center w-full px-4 py-4 rounded-xl text-lg font-medium transition-colors shadow-sm ${
           loading || success
@@ -76,17 +59,16 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
         }`}
       >
         <XCircleIcon className="w-5 h-5 mr-2" />
-        {getButtonText()}
+        {loading ? "Cancelling..." : success ? "Cancelled" : "Cancel Subscription"}
       </button>
 
-      {/* Confirmation Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full p-6">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
               Cancel Subscription
             </h3>
-            
+
             <p className="text-gray-600 dark:text-gray-300 mb-4">
               How would you like to cancel your subscription?
             </p>
@@ -97,7 +79,7 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
                   type="radio"
                   name="cancelOption"
                   checked={selectedOption === "next_billing"}
-                  onChange={() => handleOptionChange("next_billing")}
+                  onChange={() => setSelectedOption("next_billing")}
                   className="mt-1"
                 />
                 <div>
@@ -115,7 +97,7 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
                   type="radio"
                   name="cancelOption"
                   checked={selectedOption === "immediately"}
-                  onChange={() => handleOptionChange("immediately")}
+                  onChange={() => setSelectedOption("immediately")}
                   className="mt-1"
                 />
                 <div>
@@ -132,7 +114,7 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
             <div className="flex space-x-3">
               <button
                 type="button"
-                onClick={handleCloseModal}
+                onClick={() => setShowModal(false)}
                 disabled={loading}
                 className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
               >

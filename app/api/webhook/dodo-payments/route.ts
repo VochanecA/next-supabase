@@ -287,10 +287,7 @@
 // })
 
 
-
 'use server'
-
-
 
 import { NextResponse } from 'next/server'
 import type {
@@ -303,7 +300,7 @@ import type {
   DodoRefundData,
   DodoDisputeData,
 } from '@/types/dodo-webhook'
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/service-client' // Changed this line
 import { getRequiredWebhookKey } from '@/lib/env'
 
 // --- Logger ---
@@ -330,7 +327,7 @@ const isDispute = (payload: MyWebhookPayload): payload is DodoWebhookPayload<Dod
 
 // --- Supabase Helpers ---
 const upsertCustomer = async (customer: { customer_id: string; email: string; name?: string }) => {
-  const supabase = await createClient()
+  const supabase = createServiceClient() // Changed this line - removed await
   try {
     const { error } = await supabase
       .from('customers')
@@ -348,7 +345,7 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
 }
 
 const ensureProductExists = async (product_id: string) => {
-  const supabase = await createClient()
+  const supabase = createServiceClient() // Changed this line - removed await
   try {
     const { error } = await supabase
       .from('products')
@@ -367,7 +364,7 @@ const ensureProductExists = async (product_id: string) => {
 
 const upsertSubscription = async (payload: DodoWebhookPayload<DodoSubscriptionActiveData | DodoSubscriptionCreatedData | DodoSubscriptionCancelledData>) => {
   const data = payload.data
-  const supabase = await createClient()
+  const supabase = createServiceClient() // Changed this line - removed await
   try {
     log('➡ Starting upsertSubscription for', data.subscription_id)
     if (data.product_id) await ensureProductExists(data.product_id)
@@ -400,7 +397,7 @@ const upsertSubscription = async (payload: DodoWebhookPayload<DodoSubscriptionAc
 
 const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
   const data = payload.data
-  const supabase = await createClient()
+  const supabase = createServiceClient() // Changed this line - removed await
   try {
     log('➡ Starting upsertTransaction for', data.payment_id)
     await upsertCustomer(data.customer)
@@ -443,7 +440,7 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
-  const supabase = await createClient()
+  const supabase = createServiceClient() // Changed this line - removed await
   try {
     const { error } = await supabase
       .from('refunds')
@@ -467,7 +464,7 @@ const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
 
 const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
   const data = payload.data
-  const supabase = await createClient()
+  const supabase = createServiceClient() // Changed this line - removed await
   try {
     const { error } = await supabase
       .from('disputes')
