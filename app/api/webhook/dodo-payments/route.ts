@@ -286,10 +286,10 @@
 //   },
 // })
 
-
 'use server'
 
 import { NextResponse } from 'next/server'
+import crypto from 'crypto'
 import type {
   MyWebhookPayload,
   DodoWebhookPayload,
@@ -300,11 +300,42 @@ import type {
   DodoRefundData,
   DodoDisputeData,
 } from '@/types/dodo-webhook'
-import { createServiceClient } from '@/lib/supabase/service-client' // Changed this line
-import { getRequiredWebhookKey } from '@/lib/env'
+import { createServiceClient } from '@/lib/supabase/service-client'
 
 // --- Logger ---
 const log = (...args: unknown[]) => process.env.NODE_ENV === 'development' && console.log(...args)
+
+// --- Webhook Signature Verification ---
+const verifyWebhookSignature = (
+  rawBody: string,
+  signature: string,
+  timestamp: string,
+  webhookId: string,
+  secret: string
+): boolean => {
+  try {
+    // Extract the signature part (remove "v1," prefix if present)
+    const sig = signature.startsWith('v1,') ? signature.slice(3) : signature
+    
+    // Create the signed payload: webhookId.timestamp.rawBody
+    const signedPayload = `${webhookId}.${timestamp}.${rawBody}`
+    
+    // Generate expected signature using HMAC-SHA256
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(signedPayload, 'utf8')
+      .digest('base64')
+    
+    // Compare signatures using timingSafeEqual to prevent timing attacks
+    return crypto.timingSafeEqual(
+      Buffer.from(sig, 'base64'),
+      Buffer.from(expectedSignature, 'base64')
+    )
+  } catch (error) {
+    log('❌ Signature verification error:', error)
+    return false
+  }
+}
 
 // --- Type Predicates ---
 const isPaymentSucceeded = (payload: MyWebhookPayload): payload is DodoWebhookPayload<DodoPaymentSucceededData> & { type: 'payment.succeeded' } =>
@@ -327,7 +358,7 @@ const isDispute = (payload: MyWebhookPayload): payload is DodoWebhookPayload<Dod
 
 // --- Supabase Helpers ---
 const upsertCustomer = async (customer: { customer_id: string; email: string; name?: string }) => {
-  const supabase = createServiceClient() // Changed this line - removed await
+  const supabase = createServiceClient()
   try {
     const { error } = await supabase
       .from('customers')
@@ -345,7 +376,7 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
 }
 
 const ensureProductExists = async (product_id: string) => {
-  const supabase = createServiceClient() // Changed this line - removed await
+  const supabase = createServiceClient()
   try {
     const { error } = await supabase
       .from('products')
@@ -364,7 +395,7 @@ const ensureProductExists = async (product_id: string) => {
 
 const upsertSubscription = async (payload: DodoWebhookPayload<DodoSubscriptionActiveData | DodoSubscriptionCreatedData | DodoSubscriptionCancelledData>) => {
   const data = payload.data
-  const supabase = createServiceClient() // Changed this line - removed await
+  const supabase = createServiceClient()
   try {
     log('➡ Starting upsertSubscription for', data.subscription_id)
     if (data.product_id) await ensureProductExists(data.product_id)
@@ -397,7 +428,7 @@ const upsertSubscription = async (payload: DodoWebhookPayload<DodoSubscriptionAc
 
 const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
   const data = payload.data
-  const supabase = createServiceClient() // Changed this line - removed await
+  const supabase = createServiceClient()
   try {
     log('➡ Starting upsertTransaction for', data.payment_id)
     await upsertCustomer(data.customer)
@@ -440,7 +471,7 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
-  const supabase = createServiceClient() // Changed this line - removed await
+  const supabase = createServiceClient()
   try {
     const { error } = await supabase
       .from('refunds')
@@ -464,7 +495,7 @@ const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
 
 const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
   const data = payload.data
-  const supabase = createServiceClient() // Changed this line - removed await
+  const supabase = createServiceClient()
   try {
     const { error } = await supabase
       .from('disputes')
@@ -488,14 +519,34 @@ const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
 // --- POST Route Handler ---
 export async function POST(req: Request) {
   try {
-    const webhookKey = getRequiredWebhookKey()
-    const payload = (await req.json()) as MyWebhookPayload
-
-    // Verify key (if Dodo webhook passes a key header)
-    const incomingKey = req.headers.get('x-webhook-key')
-    if (incomingKey !== webhookKey) {
-      return NextResponse.json({ error: 'Invalid webhook key' }, { status: 403 })
+    // Get the raw body for signature verification
+    const rawBody = await req.text()
+    
+    // Get webhook headers
+    const signature = req.headers.get('webhook-signature')
+    const timestamp = req.headers.get('webhook-timestamp')
+    const webhookId = req.headers.get('webhook-id')
+    
+    if (!signature || !timestamp || !webhookId) {
+      log('❌ Missing required webhook headers')
+      return NextResponse.json({ error: 'Missing webhook headers' }, { status: 400 })
     }
+
+    // Verify webhook signature
+    const webhookSecret = process.env.DODO_WEBHOOK_SECRET
+    if (!webhookSecret) {
+      log('❌ Missing DODO_WEBHOOK_SECRET environment variable')
+      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
+    }
+
+    const isValid = verifyWebhookSignature(rawBody, signature, timestamp, webhookId, webhookSecret)
+    if (!isValid) {
+      log('❌ Invalid webhook signature')
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 403 })
+    }
+
+    // Parse the JSON payload
+    const payload = JSON.parse(rawBody) as MyWebhookPayload
 
     log('🔔 Received webhook event:', payload.type)
 
