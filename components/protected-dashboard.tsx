@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { ProtectedAccount } from './protected-account';
+import React, { useState } from "react";
+import { ProtectedAccount } from "./protected-account";
 import {
   CreditCardIcon,
   MailIcon,
@@ -10,10 +10,10 @@ import {
   DownloadIcon,
   HandIcon,
   ChevronRightIcon,
-} from 'lucide-react';
-import CustomerPortalButton from './CustomerPortalButton';
-import { CancelSubscriptionButton } from '@/components/CancelSubscriptionButton';
-import ManagePlanButton from './ManagePlanButton';
+} from "lucide-react";
+import CustomerPortalButton from "./CustomerPortalButton";
+import { CancelSubscriptionButton } from "@/components/CancelSubscriptionButton";
+import ManagePlanButton from "./ManagePlanButton";
 
 interface Product {
   product_id: string;
@@ -66,48 +66,48 @@ export const ProtectedDashboard: React.FC<Props> = ({
   transactions,
   customerId,
 }) => {
-  const username = user.email?.split('@')[0] ?? 'User';
+  const username = user.email?.split("@")[0] ?? "User";
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(initialSubscriptions);
 
-  // Handler to update a single subscription locally after cancel
+  // Handler to update subscription locally after cancel
   const handleSubscriptionCancelled = (subscriptionId: string) => {
     setSubscriptions((prev) =>
       prev.map((sub) =>
         sub.subscription_id === subscriptionId
-          ? { ...sub, subscription_status: 'cancelled' }
+          ? { ...sub, subscription_status: "cancelled" }
           : sub
       )
     );
   };
 
   const formatAmount = (amount?: number | null, currency?: string | null): string => {
-    if (amount == null) return 'N/A';
+    if (amount == null) return "N/A";
     const actualAmount = amount / 100;
     return currency
-      ? new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(actualAmount)
+      ? new Intl.NumberFormat("en-US", { style: "currency", currency }).format(actualAmount)
       : actualAmount.toString();
   };
 
   const formatDate = (date?: string | null): string => {
-    if (!date) return 'N/A';
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
+    if (!date) return "N/A";
+    return new Date(date).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
     });
   };
 
   const getStatusColor = (status: string): string => {
     const colors: Record<string, string> = {
-      active: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-      inactive: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-      completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-      failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-      processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-      cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+      active: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+      inactive: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+      pending: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300",
+      completed: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
+      failed: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
+      processing: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
+      cancelled: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300",
     };
-    return colors[status.toLowerCase()] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+    return colors[status.toLowerCase()] ?? "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300";
   };
 
   return (
@@ -139,21 +139,21 @@ export const ProtectedDashboard: React.FC<Props> = ({
                 <MailIcon className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
-                  <p className="font-medium text-gray-900 dark:text-white">{user.email ?? 'Not available'}</p>
+                  <p className="font-medium text-gray-900 dark:text-white">{user.email ?? "Not available"}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 <KeyIcon className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">User ID</p>
-                  <p className="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">{user.sub ?? 'Not available'}</p>
+                  <p className="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">{user.sub ?? "Not available"}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
                 <PlusIcon className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Account Type</p>
-                  <p className="font-medium capitalize">{user.aud ?? 'Standard'}</p>
+                  <p className="font-medium capitalize">{user.aud ?? "Standard"}</p>
                 </div>
               </div>
               <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
@@ -179,7 +179,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
               {subscriptions.length ? (
                 subscriptions.map((sub) => (
                   <div key={sub.subscription_id} className="pb-5 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0">
-                    <h3 className="font-medium text-lg">{sub.product?.name ?? 'Unknown Product'}</h3>
+                    <h3 className="font-medium text-lg">{sub.product?.name ?? "Unknown Product"}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">ID: {sub.subscription_id}</p>
                     <div className="mt-2">
                       <span
@@ -191,7 +191,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
                       </span>
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1 mt-3">
-                      <p>Quantity: {sub.quantity ?? 'N/A'}</p>
+                      <p>Quantity: {sub.quantity ?? "N/A"}</p>
                       {sub.next_billing_date && (
                         <p>
                           Next billing: <span className="font-medium">{formatDate(sub.next_billing_date)}</span>
@@ -199,7 +199,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
                       )}
                       {sub.trial_end_date && (
                         <p>
-                          Trial ends:{' '}
+                          Trial ends:{" "}
                           <span className="font-medium text-orange-500 dark:text-orange-400">
                             {formatDate(sub.trial_end_date)}
                           </span>
@@ -208,7 +208,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
                     </div>
 
                     {/* Cancel button */}
-                    {sub.subscription_status !== 'cancelled' && (
+                    {sub.subscription_status !== "cancelled" && (
                       <div className="mt-3">
                         <CancelSubscriptionButton
                           subscriptionId={sub.subscription_id}
@@ -261,7 +261,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
                       {tx.card_network && tx.card_last_four && (
                         <p className="flex items-center">
                           <CreditCardIcon className="w-4 h-4 mr-2 text-gray-400" />
-                          <span className="capitalize font-bold text-red-500">{tx.card_network}</span> card ending in{' '}
+                          <span className="capitalize font-bold text-red-500">{tx.card_network}</span> card ending in{" "}
                           <span className="font-bold ml-1">****{tx.card_last_four}</span>
                         </p>
                       )}
@@ -303,9 +303,9 @@ export const ProtectedDashboard: React.FC<Props> = ({
               <ManagePlanButton subscriptions={subscriptions} />
             )}
 
-            {subscriptions.some((sub) => sub.subscription_status !== 'cancelled') && (
+            {subscriptions.some((sub) => sub.subscription_status !== "cancelled") && (
               <CancelSubscriptionButton
-                subscriptionId={subscriptions.find((sub) => sub.subscription_status !== 'cancelled')!.subscription_id}
+                subscriptionId={subscriptions.find((sub) => sub.subscription_status !== "cancelled")!.subscription_id}
                 onSuccess={() => {}}
               />
             )}

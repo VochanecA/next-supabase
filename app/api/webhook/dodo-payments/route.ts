@@ -51,24 +51,50 @@ const isDispute = (
   payload.type === 'payment.dispute'
 
 // --- Supabase Helpers ---
+
+/**
+ * Upserts a customer but normalizes them by email
+ * Dodo may generate a new `customer_id` every time, but email is stable
+ */
 const upsertCustomer = async (customer: { customer_id: string; email: string; name?: string }) => {
   const supabase = await createClient()
   try {
-    const { error } = await supabase
+    const { data: existing } = await supabase
       .from('customers')
-      .upsert(
-        {
+      .select('id, customer_id, email')
+      .eq('email', customer.email)
+      .single()
+
+    if (existing) {
+      // Update existing with the latest Dodo customer_id
+      const { error } = await supabase
+        .from('customers')
+        .update({
           customer_id: customer.customer_id,
-          email: customer.email,
           name: customer.name ?? null,
           updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'customer_id' } // <-- single string here
-      )
-    if (error) throw error
-    log('✅ Processed customer:', customer.customer_id)
+        })
+        .eq('email', customer.email)
+
+      if (error) throw error
+      log(`🔄 Updated existing customer for email ${customer.email} → ${customer.customer_id}`)
+      return existing.customer_id
+    } else {
+      // Insert new if no record exists for this email
+      const { error } = await supabase.from('customers').insert({
+        customer_id: customer.customer_id,
+        email: customer.email,
+        name: customer.name ?? null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      if (error) throw error
+      log(`✅ Inserted new customer: ${customer.customer_id}`)
+      return customer.customer_id
+    }
   } catch (err) {
-    log('❌ Failed to upsert customer:', customer.customer_id, err)
+    log('❌ Failed to upsert customer:', customer.email, err)
+    return customer.customer_id // fallback
   }
 }
 
@@ -106,20 +132,19 @@ const upsertSubscription = async (
 
     // Ensure product exists first
     if (data.product_id) {
-      log('🔹 Ensuring product exists:', data.product_id)
       await ensureProductExists(data.product_id)
     }
 
-    // Ensure customer exists first
-    await upsertCustomer(data.customer)
+    // Normalize customer by email
+    const normalizedCustomerId = await upsertCustomer(data.customer)
 
-    // Upsert subscription
+    // Upsert subscription (new subscription_id every time from Dodo)
     const { error } = await supabase
       .from('subscriptions')
       .upsert(
         {
           subscription_id: data.subscription_id,
-          customer_id: data.customer.customer_id,
+          customer_id: normalizedCustomerId,
           product_id: data.product_id ?? null,
           subscription_status: data.status,
           quantity: data.quantity ?? 1,
@@ -152,27 +177,26 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
   try {
     log('➡ Starting upsertTransaction for', data.payment_id)
 
-    // 1️⃣ Ensure customer exists first
-    await upsertCustomer(data.customer)
+    // Normalize customer by email
+    const normalizedCustomerId = await upsertCustomer(data.customer)
 
-    // 2️⃣ Ensure subscription exists minimally (to satisfy FK)
+    // Ensure subscription exists (FK safety)
     if (data.subscription_id) {
-      log('🔹 Ensuring subscription exists for FK:', data.subscription_id)
       await supabase.from('subscriptions').upsert({
         subscription_id: data.subscription_id,
-        customer_id: data.customer.customer_id,
+        customer_id: normalizedCustomerId,
         subscription_status: 'active', // default if unknown
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        metadata: {}
+        metadata: {},
       }, { onConflict: 'subscription_id' })
     }
 
-    // 3️⃣ Map webhook data to transactions table
+    // Map webhook data to transactions table
     const transactionRow = {
       transaction_id: data.payment_id,
       subscription_id: data.subscription_id ?? null,
-      customer_id: data.customer.customer_id,
+      customer_id: normalizedCustomerId,
       status: data.status ?? 'unknown',
       amount: data.total_amount,
       currency: data.currency ?? 'USD',
@@ -186,8 +210,6 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
       updated_at: new Date().toISOString(),
     }
 
-    log('🔹 Upserting transaction row:', transactionRow)
-
     const { error } = await supabase
       .from('transactions')
       .upsert(transactionRow, { onConflict: 'transaction_id' })
@@ -199,8 +221,6 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
     log('Payload:', payload)
   }
 }
-
-
 
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
@@ -265,7 +285,7 @@ export const POST = Webhooks({
     const p = payload as MyWebhookPayload
     log('🔔 Received webhook event:', p.type)
 
-    // 1️⃣ Upsert customer first
+    // 1️⃣ Upsert customer first (normalize by email)
     if ('customer' in p.data && p.data.customer) {
       await upsertCustomer(p.data.customer)
     }
