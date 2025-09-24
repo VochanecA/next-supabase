@@ -53,51 +53,43 @@ const isDispute = (
 // --- Supabase Helpers ---
 
 /**
- * Upserts a customer but normalizes them by email
- * Dodo may generate a new `customer_id` every time, but email is stable
+ * Inserts a new customer if this exact customer_id does not exist.
+ * Multiple customer_ids for the same email are allowed.
  */
 const upsertCustomer = async (customer: { customer_id: string; email: string; name?: string }) => {
   const supabase = await createClient()
   try {
     const { data: existing } = await supabase
       .from('customers')
-      .select('id, customer_id, email')
-      .eq('email', customer.email)
+      .select('customer_id')
+      .eq('customer_id', customer.customer_id)
       .single()
 
     if (existing) {
-      // Update existing with the latest Dodo customer_id
-      const { error } = await supabase
-        .from('customers')
-        .update({
-          customer_id: customer.customer_id,
-          name: customer.name ?? null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('email', customer.email)
-
-      if (error) throw error
-      log(`🔄 Updated existing customer for email ${customer.email} → ${customer.customer_id}`)
-      return existing.customer_id
-    } else {
-      // Insert new if no record exists for this email
-      const { error } = await supabase.from('customers').insert({
-        customer_id: customer.customer_id,
-        email: customer.email,
-        name: customer.name ?? null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      if (error) throw error
-      log(`✅ Inserted new customer: ${customer.customer_id}`)
+      log(`🔄 Customer already exists: ${customer.customer_id}`)
       return customer.customer_id
     }
+
+    const { error } = await supabase.from('customers').insert({
+      customer_id: customer.customer_id,
+      email: customer.email,
+      name: customer.name ?? null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+
+    if (error) throw error
+    log(`✅ Inserted new customer: ${customer.customer_id} (email: ${customer.email})`)
+    return customer.customer_id
   } catch (err) {
     log('❌ Failed to upsert customer:', customer.email, err)
-    return customer.customer_id // fallback
+    return customer.customer_id
   }
 }
 
+/**
+ * Ensures a product exists in Supabase
+ */
 const ensureProductExists = async (product_id: string) => {
   const supabase = await createClient()
   try {
@@ -106,7 +98,7 @@ const ensureProductExists = async (product_id: string) => {
       .upsert(
         {
           product_id,
-          name: product_id, // fallback name
+          name: product_id,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         },
@@ -119,6 +111,9 @@ const ensureProductExists = async (product_id: string) => {
   }
 }
 
+/**
+ * Inserts or updates a subscription
+ */
 const upsertSubscription = async (
   payload: DodoWebhookPayload<
     DodoSubscriptionActiveData | DodoSubscriptionCreatedData | DodoSubscriptionCancelledData
@@ -130,21 +125,19 @@ const upsertSubscription = async (
   try {
     log('➡ Starting upsertSubscription for', data.subscription_id)
 
-    // Ensure product exists first
     if (data.product_id) {
       await ensureProductExists(data.product_id)
     }
 
-    // Normalize customer by email
-    const normalizedCustomerId = await upsertCustomer(data.customer)
+    // Use the customer_id from webhook, insert if new
+    const customerId = await upsertCustomer(data.customer)
 
-    // Upsert subscription (new subscription_id every time from Dodo)
     const { error } = await supabase
       .from('subscriptions')
       .upsert(
         {
           subscription_id: data.subscription_id,
-          customer_id: normalizedCustomerId,
+          customer_id: customerId,
           product_id: data.product_id ?? null,
           subscription_status: data.status,
           quantity: data.quantity ?? 1,
@@ -166,10 +159,12 @@ const upsertSubscription = async (
     log(`✅ Upserted subscription: ${data.subscription_id} → ${data.status}`)
   } catch (err) {
     log(`❌ Failed to upsert subscription: ${data.subscription_id}`, err)
-    log('Payload:', payload)
   }
 }
 
+/**
+ * Inserts or updates a transaction
+ */
 const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceededData>) => {
   const data = payload.data
   const supabase = await createClient()
@@ -177,26 +172,23 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
   try {
     log('➡ Starting upsertTransaction for', data.payment_id)
 
-    // Normalize customer by email
-    const normalizedCustomerId = await upsertCustomer(data.customer)
+    const customerId = await upsertCustomer(data.customer)
 
-    // Ensure subscription exists (FK safety)
     if (data.subscription_id) {
       await supabase.from('subscriptions').upsert({
         subscription_id: data.subscription_id,
-        customer_id: normalizedCustomerId,
-        subscription_status: 'active', // default if unknown
+        customer_id: customerId,
+        subscription_status: 'active',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         metadata: {},
       }, { onConflict: 'subscription_id' })
     }
 
-    // Map webhook data to transactions table
     const transactionRow = {
       transaction_id: data.payment_id,
       subscription_id: data.subscription_id ?? null,
-      customer_id: normalizedCustomerId,
+      customer_id: customerId,
       status: data.status ?? 'unknown',
       amount: data.total_amount,
       currency: data.currency ?? 'USD',
@@ -210,70 +202,60 @@ const upsertTransaction = async (payload: DodoWebhookPayload<DodoPaymentSucceede
       updated_at: new Date().toISOString(),
     }
 
-    const { error } = await supabase
-      .from('transactions')
-      .upsert(transactionRow, { onConflict: 'transaction_id' })
-
+    const { error } = await supabase.from('transactions').upsert(transactionRow, { onConflict: 'transaction_id' })
     if (error) throw error
     log('✅ Upserted transaction:', data.payment_id)
   } catch (err) {
     log('❌ Failed to upsert transaction:', data.payment_id, err)
-    log('Payload:', payload)
   }
 }
 
+/**
+ * Refund
+ */
 const upsertRefund = async (payload: DodoWebhookPayload<DodoRefundData>) => {
   const data = payload.data
   const supabase = await createClient()
   try {
-    const { error } = await supabase
-      .from('refunds')
-      .upsert(
-        {
-          refund_id: data.refund_id,
-          transaction_id: data.payment_id,
-          customer_id: data.customer.customer_id,
-          amount: data.amount,
-          currency: data.currency ?? null,
-          is_partial: data.is_partial ?? false,
-          reason: data.reason ?? null,
-          status: data.status ?? null,
-          created_at: data.created_at ?? new Date().toISOString(),
-        },
-        { onConflict: 'refund_id' }
-      )
+    const { error } = await supabase.from('refunds').upsert({
+      refund_id: data.refund_id,
+      transaction_id: data.payment_id,
+      customer_id: data.customer.customer_id,
+      amount: data.amount,
+      currency: data.currency ?? null,
+      is_partial: data.is_partial ?? false,
+      reason: data.reason ?? null,
+      status: data.status ?? null,
+      created_at: data.created_at ?? new Date().toISOString(),
+    }, { onConflict: 'refund_id' })
     if (error) throw error
     log(`✅ Processed refund: ${data.refund_id} → ${data.status}`)
   } catch (err) {
     log(`❌ Failed to upsert refund: ${data.refund_id}`, err)
-    log('Payload:', payload)
   }
 }
 
+/**
+ * Dispute
+ */
 const upsertDispute = async (payload: DodoWebhookPayload<DodoDisputeData>) => {
   const data = payload.data
   const supabase = await createClient()
   try {
-    const { error } = await supabase
-      .from('disputes')
-      .upsert(
-        {
-          dispute_id: data.dispute_id,
-          transaction_id: data.payment_id,
-          amount: data.amount ?? null,
-          currency: data.currency ?? null,
-          dispute_stage: data.dispute_stage ?? null,
-          dispute_status: data.dispute_status ?? null,
-          remarks: data.remarks ?? null,
-          created_at: data.created_at ?? new Date().toISOString(),
-        },
-        { onConflict: 'dispute_id' }
-      )
+    const { error } = await supabase.from('disputes').upsert({
+      dispute_id: data.dispute_id,
+      transaction_id: data.payment_id,
+      amount: data.amount ?? null,
+      currency: data.currency ?? null,
+      dispute_stage: data.dispute_stage ?? null,
+      dispute_status: data.dispute_status ?? null,
+      remarks: data.remarks ?? null,
+      created_at: data.created_at ?? new Date().toISOString(),
+    }, { onConflict: 'dispute_id' })
     if (error) throw error
     log(`✅ Processed dispute: ${data.dispute_id} → ${data.dispute_status}`)
   } catch (err) {
     log(`❌ Failed to upsert dispute: ${data.dispute_id}`, err)
-    log('Payload:', payload)
   }
 }
 
@@ -285,22 +267,18 @@ export const POST = Webhooks({
     const p = payload as MyWebhookPayload
     log('🔔 Received webhook event:', p.type)
 
-    // 1️⃣ Upsert customer first (normalize by email)
     if ('customer' in p.data && p.data.customer) {
       await upsertCustomer(p.data.customer)
     }
 
-    // 2️⃣ Upsert subscription (active/created/cancelled)
     if (isSubscriptionActive(p) || isSubscriptionCreated(p) || isSubscriptionCancelled(p)) {
       await upsertSubscription(p)
     }
 
-    // 3️⃣ Upsert transaction (payment.succeeded)
     if (isPaymentSucceeded(p)) {
       await upsertTransaction(p)
     }
 
-    // 4️⃣ Refund / Dispute
     if (isRefund(p)) await upsertRefund(p)
     if (isDispute(p)) await upsertDispute(p)
   },
