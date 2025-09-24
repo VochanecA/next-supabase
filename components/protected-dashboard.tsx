@@ -33,7 +33,7 @@ export interface Subscription {
   next_billing_date?: string | null;
   trial_end_date?: string | null;
   product?: Product | null;
-  customer_id?: string | null; // optional
+  customer_id?: string | null;
 }
 
 interface Transaction {
@@ -46,7 +46,7 @@ interface Transaction {
   card_last_four?: string | null;
   card_network?: string | null;
   card_type?: string | null;
-  customer_id?: string | null; // optional
+  customer_id?: string | null;
 }
 
 interface UserClaims {
@@ -68,13 +68,12 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
 
   const supabase = createClient();
 
-  // Fetch subscriptions and transactions by email
   useEffect(() => {
     const fetchData = async () => {
       if (!user.email) return;
 
       try {
-        // 1️⃣ Get all customers with this email
+        // 1️⃣ Fetch customers by email
         const { data: customers, error: custError } = await supabase
           .from("customers")
           .select("*")
@@ -87,21 +86,51 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
 
         if (!customers || customers.length === 0) return;
 
-        // Optional: pick first customer for CustomerPortalButton
         setCustomerId(customers[0].customer_id ?? null);
 
         const customerIds = customers.map((c) => c.customer_id);
 
-        // 2️⃣ Fetch subscriptions for all customer_ids
+        // 2️⃣ Fetch subscriptions
         const { data: subsData, error: subsError } = await supabase
           .from("subscriptions")
           .select("*")
           .in("customer_id", customerIds);
 
         if (subsError) console.error("Failed to fetch subscriptions:", subsError);
-        else setSubscriptions(subsData ?? []);
 
-        // 3️⃣ Fetch transactions for all customer_ids
+        if (!subsData || subsData.length === 0) {
+          setSubscriptions([]);
+        } else {
+          // 3️⃣ Fetch products for subscriptions
+          const productIds = subsData
+            .map((sub) => sub.product_id)
+            .filter((id): id is string => !!id);
+
+          let products: Product[] = [];
+          if (productIds.length > 0) {
+            const { data: productsData, error: productsError } = await supabase
+              .from("products")
+              .select("*")
+              .in("product_id", productIds);
+
+            if (productsError) console.error("Failed to fetch products:", productsError);
+            if (productsData) products = productsData;
+          }
+
+          // Map product_id -> product
+          const productMap = new Map<string, Product>();
+          products.forEach((prod) => productMap.set(prod.product_id, prod));
+
+          // Attach product info to subscriptions
+          const enrichedSubs: Subscription[] = subsData.map((sub) => ({
+            ...sub,
+            product: sub.product_id ? productMap.get(sub.product_id) ?? null : null,
+          }));
+
+          setSubscriptions(enrichedSubs);
+        }
+
+        // 4️⃣ Fetch transactions
         const { data: txData, error: txError } = await supabase
           .from("transactions")
           .select("*")
@@ -115,7 +144,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
     };
 
     fetchData();
-}, [user.email, supabase]); // ✅ include supabase
+  }, [user.email, supabase]);
 
   const handleSubscriptionCancelled = (subscriptionId: string) => {
     setSubscriptions((prev) =>
@@ -206,11 +235,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
               <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
                 <ProtectedAccount user={user} />
               </div>
-              {customerId && (
-                <div className="mt-4">
-                  <CustomerPortalButton customerId={customerId} />
-                </div>
-              )}
+              {customerId && <CustomerPortalButton customerId={customerId} />}
             </div>
           </article>
 
