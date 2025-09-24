@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ProtectedAccount } from './protected-account';
 import {
   CreditCardIcon,
@@ -12,8 +12,7 @@ import {
   ChevronRightIcon,
 } from 'lucide-react';
 import CustomerPortalButton from './CustomerPortalButton';
-import { CancelSubscriptionButton } from "@/components/CancelSubscriptionButton";
-
+import { CancelSubscriptionButton } from '@/components/CancelSubscriptionButton';
 import ManagePlanButton from './ManagePlanButton';
 
 interface Product {
@@ -24,7 +23,7 @@ interface Product {
   currency?: string | null;
 }
 
-interface Subscription {
+export interface Subscription {
   subscription_id: string;
   subscription_status: string;
   quantity?: number | null;
@@ -61,52 +60,65 @@ interface Props {
   customerId?: string;
 }
 
-// Utility functions
-const formatAmount = (amount?: number | null, currency?: string | null): string => {
-  if (amount == null) return 'N/A';
-  const actualAmount = amount / 100;
-  return currency
-    ? new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(actualAmount)
-    : actualAmount.toString();
-};
-
-const formatDate = (date?: string | null): string => {
-  if (!date) return 'N/A';
-  return new Date(date).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-};
-
-const getStatusColor = (status: string): string => {
-  const colors: Record<string, string> = {
-    active: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-    inactive: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-    pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
-    completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
-    failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
-    processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
-  };
-  return colors[status.toLowerCase()] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
-};
-
-export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, transactions, customerId }) => {
+export const ProtectedDashboard: React.FC<Props> = ({
+  user,
+  subscriptions: initialSubscriptions,
+  transactions,
+  customerId,
+}) => {
   const username = user.email?.split('@')[0] ?? 'User';
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(initialSubscriptions);
+
+  // Handler to update a single subscription locally after cancel
+  const handleSubscriptionCancelled = (subscriptionId: string) => {
+    setSubscriptions((prev) =>
+      prev.map((sub) =>
+        sub.subscription_id === subscriptionId
+          ? { ...sub, subscription_status: 'cancelled' }
+          : sub
+      )
+    );
+  };
+
+  const formatAmount = (amount?: number | null, currency?: string | null): string => {
+    if (amount == null) return 'N/A';
+    const actualAmount = amount / 100;
+    return currency
+      ? new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(actualAmount)
+      : actualAmount.toString();
+  };
+
+  const formatDate = (date?: string | null): string => {
+    if (!date) return 'N/A';
+    return new Date(date).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  };
+
+  const getStatusColor = (status: string): string => {
+    const colors: Record<string, string> = {
+      active: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+      inactive: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+      pending: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300',
+      completed: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300',
+      failed: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+      processing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+      cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300',
+    };
+    return colors[status.toLowerCase()] ?? 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100 transition-colors duration-200">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <header className="mb-12">
-<h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight flex items-center gap-3">
-  <HandIcon className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-yellow-500" />
-  Welcome back, <span className="text-blue-600 dark:text-blue-400 capitalize">{username}</span>
-</h1>
-{/* <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight flex items-center gap-3">
-  <span className="inline-block animate-bounce text-yellow-500 text-4xl">✋</span>
-  Welcome back, <span className="text-blue-600 dark:text-blue-400">{username}</span>
-</h1> */}
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight flex items-center gap-3">
+            <HandIcon className="w-8 h-8 sm:w-10 sm:h-10 lg:w-12 lg:h-12 text-yellow-500" />
+            Welcome back, <span className="text-blue-600 dark:text-blue-400 capitalize">{username}</span>
+          </h1>
           <p className="mt-4 max-w-2xl text-xl text-gray-500 dark:text-gray-400">
             Here&apos;s a quick overview of your account, subscriptions, and recent activity.
           </p>
@@ -124,21 +136,21 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
             </header>
             <div className="space-y-5">
               <div className="flex items-center space-x-3">
-                <MailIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                <MailIcon className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Email</p>
                   <p className="font-medium text-gray-900 dark:text-white">{user.email ?? 'Not available'}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <KeyIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                <KeyIcon className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">User ID</p>
                   <p className="font-mono text-sm text-gray-700 dark:text-gray-300 truncate">{user.sub ?? 'Not available'}</p>
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-                <PlusIcon className="h-5 w-5 text-gray-400" aria-hidden="true" />
+                <PlusIcon className="h-5 w-5 text-gray-400" />
                 <div>
                   <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Account Type</p>
                   <p className="font-medium capitalize">{user.aud ?? 'Standard'}</p>
@@ -147,7 +159,6 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
               <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
                 <ProtectedAccount user={user} />
               </div>
-              {/* Customer Portal Button */}
               {customerId && (
                 <div className="mt-4">
                   <CustomerPortalButton customerId={customerId} />
@@ -195,6 +206,16 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
                         </p>
                       )}
                     </div>
+
+                    {/* Cancel button */}
+                    {sub.subscription_status !== 'cancelled' && (
+                      <div className="mt-3">
+                        <CancelSubscriptionButton
+                          subscriptionId={sub.subscription_id}
+                          onSuccess={() => handleSubscriptionCancelled(sub.subscription_id)}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))
               ) : (
@@ -204,7 +225,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
                     type="button"
                     className="flex items-center justify-center mx-auto text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                   >
-                    Explore Plans <ChevronRightIcon className="w-4 h-4 ml-1" aria-hidden="true" />
+                    Explore Plans <ChevronRightIcon className="w-4 h-4 ml-1" />
                   </button>
                 </div>
               )}
@@ -239,7 +260,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
                       </p>
                       {tx.card_network && tx.card_last_four && (
                         <p className="flex items-center">
-                          <CreditCardIcon className="w-4 h-4 mr-2 text-gray-400" aria-hidden="true" />
+                          <CreditCardIcon className="w-4 h-4 mr-2 text-gray-400" />
                           <span className="capitalize font-bold text-red-500">{tx.card_network}</span> card ending in{' '}
                           <span className="font-bold ml-1">****{tx.card_last_four}</span>
                         </p>
@@ -254,7 +275,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
                     type="button"
                     className="flex items-center justify-center mx-auto text-blue-600 hover:text-blue-500 dark:text-blue-400 dark:hover:text-blue-300 font-medium"
                   >
-                    View All Transactions <ChevronRightIcon className="w-4 h-4 ml-1" aria-hidden="true" />
+                    View All Transactions <ChevronRightIcon className="w-4 h-4 ml-1" />
                   </button>
                 </div>
               )}
@@ -263,44 +284,35 @@ export const ProtectedDashboard: React.FC<Props> = ({ user, subscriptions, trans
         </section>
 
         {/* Quick Actions */}
-{/* Quick Actions */}
-{/* Quick Actions */}
-<section className="mt-8">
-  <header className="flex items-center justify-between mb-4">
-    <h2 className="text-xl font-semibold">Quick Actions</h2>
-    <span className="text-xs font-medium px-3 py-1 rounded-full text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900">
-      Shortcuts
-    </span>
-  </header>
-  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-    <button
-      type="button"
-      className="flex items-center justify-center px-4 py-4 bg-gray-900 dark:bg-gray-800 text-white rounded-xl text-lg font-medium hover:bg-gray-800 dark:hover:bg-gray-700 transition-colors shadow-sm"
-    >
-      <DownloadIcon className="w-5 h-5 mr-2" aria-hidden="true" /> Download Invoice
-    </button>
-    
-    {/* Manage Plan Button - Only show if there are subscriptions */}
-    {subscriptions.length > 0 && (
-      <ManagePlanButton 
-        subscriptions={subscriptions}
-      />
-    )}
+        <section className="mt-8">
+          <header className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold">Quick Actions</h2>
+            <span className="text-xs font-medium px-3 py-1 rounded-full text-blue-700 bg-blue-100 dark:text-blue-300 dark:bg-blue-900">
+              Shortcuts
+            </span>
+          </header>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <button
+              type="button"
+              className="flex items-center justify-center px-4 py-4 bg-gray-900 dark:bg-gray-800 text-white rounded-xl text-lg font-medium hover:bg-gray-800 dark:hover:bg-gray-700 transition-colors shadow-sm"
+            >
+              <DownloadIcon className="w-5 h-5 mr-2" /> Download Invoice
+            </button>
 
-    {/* Cancel Subscription Button - Only show if there are active subscriptions */}
-{subscriptions.length > 0 && (
-  <CancelSubscriptionButton subscriptionId={subscriptions[0].subscription_id} />
-)}
+            {subscriptions.length > 0 && (
+              <ManagePlanButton subscriptions={subscriptions} />
+            )}
 
+            {subscriptions.some((sub) => sub.subscription_status !== 'cancelled') && (
+              <CancelSubscriptionButton
+                subscriptionId={subscriptions.find((sub) => sub.subscription_status !== 'cancelled')!.subscription_id}
+                onSuccess={() => {}}
+              />
+            )}
 
-    {/* Customer Portal Button - Only show if customerId exists */}
-    {customerId && (
-      <CustomerPortalButton 
-        customerId={customerId}
-      />
-    )}
-  </div>
-</section>
+            {customerId && <CustomerPortalButton customerId={customerId} />}
+          </div>
+        </section>
       </main>
     </div>
   );

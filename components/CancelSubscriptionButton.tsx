@@ -1,18 +1,18 @@
-"use client";
+'use client';
 
 import { useState } from "react";
 import { XCircleIcon } from "lucide-react";
 import type { CancelOption } from "@/lib/actions/cancel-subscription";
-
-// Use the server action via import type only
 import { cancelSubscription } from "@/lib/actions/cancel-subscription";
 
 interface CancelSubscriptionButtonProps {
   subscriptionId: string;
+  onSuccess?: (subscriptionId: string, newStatus: string) => void; // callback
 }
 
 export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> = ({
   subscriptionId,
+  onSuccess,
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,7 +30,6 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
     setError(null);
 
     try {
-      // Call server action
       const result = await cancelSubscription(subscriptionId, selectedOption);
 
       if (!result.success) {
@@ -38,6 +37,10 @@ export const CancelSubscriptionButton: React.FC<CancelSubscriptionButtonProps> =
       } else {
         setSuccess(true);
         setShowModal(false);
+        // update parent state instantly
+        if (onSuccess) {
+          onSuccess(subscriptionId, selectedOption === "immediately" ? "cancelled" : "active");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error occurred");
