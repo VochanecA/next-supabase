@@ -59,7 +59,19 @@ export async function cancelSubscription(
       throw new Error(`Invalid response from Dodo: ${JSON.stringify(dodoResponse)}`);
     }
 
-    // Update Supabase only if Dodo API succeeded
+    // ✅ Confirm Dodo actually registered the cancellation
+    const cancelled =
+      option === "immediately"
+        ? subscriptionData.status === "canceled" || !!subscriptionData.cancelled_at
+        : subscriptionData.cancel_at_next_billing_date === true;
+
+    if (!cancelled) {
+      throw new Error(
+        `Dodo subscription not cancelled as expected. Response: ${JSON.stringify(dodoResponse)}`
+      );
+    }
+
+    // Update Supabase only if cancellation confirmed
     const { error } = await supabase
       .from("subscriptions")
       .update({
