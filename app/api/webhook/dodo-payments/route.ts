@@ -105,28 +105,19 @@ const upsertSubscription = async (
     log('➡ Starting upsertSubscription for', data.subscription_id)
 
     // Ensure product exists first
-    if (data.product_id) await ensureProductExists(data.product_id)
+    if (data.product_id) {
+      log('🔹 Ensuring product exists:', data.product_id)
+      await ensureProductExists(data.product_id)
+    }
 
     // Ensure customer exists first
     await upsertCustomer(data.customer)
 
-    // Check if this exact subscription_id exists
-    const { data: existing, error: fetchError } = await supabase
+    // Upsert subscription
+    const { error } = await supabase
       .from('subscriptions')
-      .select('subscription_id')
-      .eq('subscription_id', data.subscription_id)
-      .single()
-
-    if (fetchError && fetchError.code !== 'PGRST116') {
-      // PGRST116 = no rows found (Supabase PostgREST)
-      throw fetchError
-    }
-
-    if (!existing) {
-      // Insert as new subscription
-      const { error } = await supabase
-        .from('subscriptions')
-        .insert({
+      .upsert(
+        {
           subscription_id: data.subscription_id,
           customer_id: data.customer.customer_id,
           product_id: data.product_id ?? null,
@@ -142,20 +133,14 @@ const upsertSubscription = async (
           metadata: 'metadata' in data ? data.metadata : {},
           created_at: data.created_at ?? new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        })
-      if (error) throw error
-      log(`✅ Inserted new subscription: ${data.subscription_id} → ${data.status}`)
-    } else {
-      // Optional: update only status if needed
-      const { error } = await supabase
-        .from('subscriptions')
-        .update({ subscription_status: data.status, updated_at: new Date().toISOString() })
-        .eq('subscription_id', data.subscription_id)
-      if (error) throw error
-      log(`🔄 Updated existing subscription: ${data.subscription_id} → ${data.status}`)
-    }
+        },
+        { onConflict: 'subscription_id' }
+      )
+
+    if (error) throw error
+    log(`✅ Upserted subscription: ${data.subscription_id} → ${data.status}`)
   } catch (err) {
-    log(`❌ Failed to process subscription: ${data.subscription_id}`, err)
+    log(`❌ Failed to upsert subscription: ${data.subscription_id}`, err)
     log('Payload:', payload)
   }
 }
