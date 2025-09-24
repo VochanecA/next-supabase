@@ -108,7 +108,7 @@ useEffect(() => {
   };
 
   fetchData();
-}, [user.email]);
+}, [user.email, supabase]); 
 
 
   // Handler to update subscription locally after cancel
