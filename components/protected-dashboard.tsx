@@ -33,6 +33,7 @@ export interface Subscription {
   next_billing_date?: string | null;
   trial_end_date?: string | null;
   product?: Product | null;
+  customer_id?: string | null; // optional
 }
 
 interface Transaction {
@@ -45,6 +46,7 @@ interface Transaction {
   card_last_four?: string | null;
   card_network?: string | null;
   card_type?: string | null;
+  customer_id?: string | null; // optional
 }
 
 interface UserClaims {
@@ -62,56 +64,59 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
   const username = user.email?.split("@")[0] ?? "User";
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [customerId] = useState<string | null>(null);
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
   const supabase = createClient();
 
-  // Fetch customer, subscriptions, and transactions by email
-useEffect(() => {
-  const fetchData = async () => {
-    if (!user.email) return;
+  // Fetch subscriptions and transactions by email
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user.email) return;
 
-    try {
-      // 1️⃣ Get the Supabase customer record by email
-      const { data: customerData, error: customerError } = await supabase
-        .from("customers")
-        .select("*")
-        .eq("email", user.email)
-        .single();
+      try {
+        // 1️⃣ Get all customers with this email
+        const { data: customers, error: custError } = await supabase
+          .from("customers")
+          .select("*")
+          .eq("email", user.email);
 
-      if (customerError || !customerData) {
-        console.error("Failed to fetch customer:", customerError);
-        return;
+        if (custError) {
+          console.error("Failed to fetch customers:", custError);
+          return;
+        }
+
+        if (!customers || customers.length === 0) return;
+
+        // Optional: pick first customer for CustomerPortalButton
+        setCustomerId(customers[0].customer_id ?? null);
+
+        const customerIds = customers.map((c) => c.customer_id);
+
+        // 2️⃣ Fetch subscriptions for all customer_ids
+        const { data: subsData, error: subsError } = await supabase
+          .from("subscriptions")
+          .select("*")
+          .in("customer_id", customerIds);
+
+        if (subsError) console.error("Failed to fetch subscriptions:", subsError);
+        else setSubscriptions(subsData ?? []);
+
+        // 3️⃣ Fetch transactions for all customer_ids
+        const { data: txData, error: txError } = await supabase
+          .from("transactions")
+          .select("*")
+          .in("customer_id", customerIds);
+
+        if (txError) console.error("Failed to fetch transactions:", txError);
+        else setTransactions(txData ?? []);
+      } catch (err) {
+        console.error("Error fetching dashboard data:", err);
       }
+    };
 
-      // 2️⃣ Fetch subscriptions for this customer
-      const { data: subsData, error: subsError } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("customer_id", customerData.customer_id); // use normalized customer_id
+    fetchData();
+}, [user.email, supabase]); // ✅ include supabase
 
-      if (subsError) console.error("Failed to fetch subscriptions:", subsError);
-      else setSubscriptions(subsData ?? []);
-
-      // 3️⃣ Fetch transactions for this customer
-      const { data: txData, error: txError } = await supabase
-        .from("transactions")
-        .select("*")
-        .eq("customer_id", customerData.customer_id);
-
-      if (txError) console.error("Failed to fetch transactions:", txError);
-      else setTransactions(txData ?? []);
-
-    } catch (err) {
-      console.error("Error fetching dashboard data:", err);
-    }
-  };
-
-  fetchData();
-}, [user.email, supabase]); 
-
-
-  // Handler to update subscription locally after cancel
   const handleSubscriptionCancelled = (subscriptionId: string) => {
     setSubscriptions((prev) =>
       prev.map((sub) =>
@@ -122,7 +127,7 @@ useEffect(() => {
     );
   };
 
-  const formatAmount = (amount?: number | null, currency?: string | null): string => {
+  const formatAmount = (amount?: number | null, currency?: string | null) => {
     if (amount == null) return "N/A";
     const actualAmount = amount / 100;
     return currency
@@ -130,7 +135,7 @@ useEffect(() => {
       : actualAmount.toString();
   };
 
-  const formatDate = (date?: string | null): string => {
+  const formatDate = (date?: string | null) => {
     if (!date) return "N/A";
     return new Date(date).toLocaleDateString("en-US", {
       year: "numeric",
@@ -139,7 +144,7 @@ useEffect(() => {
     });
   };
 
-  const getStatusColor = (status: string): string => {
+  const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       active: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
       inactive: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
@@ -224,9 +229,7 @@ useEffect(() => {
                     <h3 className="font-medium text-lg">{sub.product?.name ?? "Unknown Product"}</h3>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">ID: {sub.subscription_id}</p>
                     <div className="mt-2">
-                      <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(sub.subscription_status)}`}
-                      >
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(sub.subscription_status)}`}>
                         {sub.subscription_status}
                       </span>
                     </div>
@@ -239,8 +242,7 @@ useEffect(() => {
                       )}
                       {sub.trial_end_date && (
                         <p>
-                          Trial ends:{" "}
-                          <span className="font-medium text-orange-500 dark:text-orange-400">{formatDate(sub.trial_end_date)}</span>
+                          Trial ends: <span className="font-medium text-orange-500 dark:text-orange-400">{formatDate(sub.trial_end_date)}</span>
                         </p>
                       )}
                     </div>
@@ -283,16 +285,12 @@ useEffect(() => {
                   <div key={tx.transaction_id} className="pb-5 border-b border-gray-100 dark:border-gray-800 last:border-0 last:pb-0">
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-lg font-bold">{formatAmount(tx.amount, tx.currency)}</span>
-                      <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(tx.status)}`}
-                      >
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(tx.status)}`}>
                         {tx.status}
                       </span>
                     </div>
                     <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-                      <p>
-                        Date: <span className="font-medium">{formatDate(tx.billed_at)}</span>
-                      </p>
+                      <p>Date: <span className="font-medium">{formatDate(tx.billed_at)}</span></p>
                       {tx.card_network && tx.card_last_four && (
                         <p className="flex items-center">
                           <CreditCardIcon className="w-4 h-4 mr-2 text-gray-400" />
