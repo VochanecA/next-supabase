@@ -44,10 +44,10 @@ export async function cancelSubscription(
   const supabase = createServiceClient();
 
   try {
-    // Prepare payload based on option
+    // Prepare payload based on cancel option
     const payload =
       option === "immediately"
-        ? { status: "canceled" } // Immediate cancellation
+        ? { status: "cancelled" } // ✅ Correct spelling for immediate cancellation
         : { cancel_at_next_billing_date: true }; // Cancel at next billing
 
     const dodoResponse: DodoUpdateResponse = await dodoClient.updateSubscription(subscriptionId, payload);
@@ -59,10 +59,10 @@ export async function cancelSubscription(
       throw new Error(`Invalid response from Dodo: ${JSON.stringify(dodoResponse)}`);
     }
 
-    // ✅ Confirm Dodo actually registered the cancellation
+    // Confirm Dodo actually registered the cancellation
     const cancelled =
       option === "immediately"
-        ? subscriptionData.status === "canceled" || !!subscriptionData.cancelled_at
+        ? subscriptionData.status === "cancelled" || !!subscriptionData.cancelled_at
         : subscriptionData.cancel_at_next_billing_date === true;
 
     if (!cancelled) {
@@ -75,7 +75,7 @@ export async function cancelSubscription(
     const { error } = await supabase
       .from("subscriptions")
       .update({
-        subscription_status: option === "immediately" ? "canceled" : "active",
+        subscription_status: option === "immediately" ? "cancelled" : "active",
         cancel_at_next_billing_date: option !== "immediately",
         updated_at: new Date().toISOString(),
       })
