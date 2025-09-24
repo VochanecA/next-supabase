@@ -64,7 +64,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
   const username = user.email?.split("@")[0] ?? "User";
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
-  const [customerId, setCustomerId] = useState<string | null>(null);
+  const [customerIds, setCustomerIds] = useState<string[]>([]);
 
   const supabase = createClient();
 
@@ -73,7 +73,7 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
       if (!user.email) return;
 
       try {
-        // 1️⃣ Fetch customers by email
+        // Fetch all customers for this email
         const { data: customers, error: custError } = await supabase
           .from("customers")
           .select("*")
@@ -86,55 +86,23 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
 
         if (!customers || customers.length === 0) return;
 
-        setCustomerId(customers[0].customer_id ?? null);
+        const ids = customers.map((c) => c.customer_id).filter(Boolean) as string[];
+        setCustomerIds(ids);
 
-        const customerIds = customers.map((c) => c.customer_id);
-
-        // 2️⃣ Fetch subscriptions
+        // Fetch all subscriptions for these customers
         const { data: subsData, error: subsError } = await supabase
           .from("subscriptions")
-          .select("*")
-          .in("customer_id", customerIds);
+          .select("*, product:products(*)")
+          .in("customer_id", ids);
 
         if (subsError) console.error("Failed to fetch subscriptions:", subsError);
+        else setSubscriptions(subsData ?? []);
 
-        if (!subsData || subsData.length === 0) {
-          setSubscriptions([]);
-        } else {
-          // 3️⃣ Fetch products for subscriptions
-          const productIds = subsData
-            .map((sub) => sub.product_id)
-            .filter((id): id is string => !!id);
-
-          let products: Product[] = [];
-          if (productIds.length > 0) {
-            const { data: productsData, error: productsError } = await supabase
-              .from("products")
-              .select("*")
-              .in("product_id", productIds);
-
-            if (productsError) console.error("Failed to fetch products:", productsError);
-            if (productsData) products = productsData;
-          }
-
-          // Map product_id -> product
-          const productMap = new Map<string, Product>();
-          products.forEach((prod) => productMap.set(prod.product_id, prod));
-
-          // Attach product info to subscriptions
-          const enrichedSubs: Subscription[] = subsData.map((sub) => ({
-            ...sub,
-            product: sub.product_id ? productMap.get(sub.product_id) ?? null : null,
-          }));
-
-          setSubscriptions(enrichedSubs);
-        }
-
-        // 4️⃣ Fetch transactions
+        // Fetch all transactions for these customers
         const { data: txData, error: txError } = await supabase
           .from("transactions")
           .select("*")
-          .in("customer_id", customerIds);
+          .in("customer_id", ids);
 
         if (txError) console.error("Failed to fetch transactions:", txError);
         else setTransactions(txData ?? []);
@@ -235,7 +203,13 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
               <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-800">
                 <ProtectedAccount user={user} />
               </div>
-              {customerId && <CustomerPortalButton customerId={customerId} />}
+              {customerIds.length > 0 && (
+                <div className="mt-4 space-y-2">
+                  {customerIds.map((id) => (
+                    <CustomerPortalButton key={id} customerId={id} />
+                  ))}
+                </div>
+              )}
             </div>
           </article>
 
@@ -271,7 +245,6 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
                         </p>
                       )}
                     </div>
-
                     {sub.subscription_status !== "cancelled" && (
                       <div className="mt-3">
                         <CancelSubscriptionButton
@@ -366,7 +339,9 @@ export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
               />
             )}
 
-            {customerId && <CustomerPortalButton customerId={customerId} />}
+            {customerIds.map((id) => (
+              <CustomerPortalButton key={id} customerId={id} />
+            ))}
           </div>
         </section>
       </main>
