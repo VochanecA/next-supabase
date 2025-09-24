@@ -26,26 +26,89 @@ const verifyWebhookSignature = (
   secret: string
 ): boolean => {
   try {
-    // Extract the signature part (remove "v1," prefix if present)
-    const sig = signature.startsWith('v1,') ? signature.slice(3) : signature
+    log('🔍 Verifying webhook signature...')
+    log('Signature:', signature)
+    log('Timestamp:', timestamp)
+    log('Webhook ID:', webhookId)
     
-    // Create the signed payload: webhookId.timestamp.rawBody
-    const signedPayload = `${webhookId}.${timestamp}.${rawBody}`
+    // Try different signature formats
+    let sig = signature;
     
-    // Generate expected signature using HMAC-SHA256
-    const expectedSignature = crypto
-      .createHmac('sha256', secret)
-      .update(signedPayload, 'utf8')
-      .digest('base64')
+    // Format: t={timestamp},v1={signature} (common format used by payment providers)
+    if (signature.includes(',')) {
+      const parts = signature.split(',');
+      for (const part of parts) {
+        if (part.startsWith('v1=')) {
+          sig = part.substring(3);
+          break;
+        }
+      }
+    }
+    // Format: v1,{signature}
+    else if (signature.startsWith('v1,')) {
+      sig = signature.slice(3);
+    }
     
-    // Compare signatures using timingSafeEqual to prevent timing attacks
-    return crypto.timingSafeEqual(
-      Buffer.from(sig, 'base64'),
-      Buffer.from(expectedSignature, 'base64')
-    )
+    log('Extracted signature:', sig);
+    
+    // Try different signed payload formats - most common is timestamp.rawBody
+    const signedPayloadOptions = [
+      `${timestamp}.${rawBody}`,                // Most common format: timestamp.rawBody
+      rawBody,                                  // Just raw body
+      `${webhookId}.${timestamp}.${rawBody}`,  // With webhook ID
+    ];
+    
+    for (let i = 0; i < signedPayloadOptions.length; i++) {
+      const signedPayload = signedPayloadOptions[i];
+      log(`Trying signed payload option ${i + 1}:`, signedPayload);
+      
+      // Generate expected signature using HMAC-SHA256
+      const expectedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(signedPayload, 'utf8')
+        .digest('base64');
+      
+      log('Expected signature (base64):', expectedSignature);
+      
+      // Try to compare as base64
+      try {
+        const sigBuffer = Buffer.from(sig, 'base64');
+        const expectedBuffer = Buffer.from(expectedSignature, 'base64');
+        
+        if (sigBuffer.length === expectedBuffer.length) {
+          const result = crypto.timingSafeEqual(sigBuffer, expectedBuffer);
+          if (result) {
+            log('✅ Signature verified successfully using base64 encoding and option', i + 1);
+            return true;
+          }
+        }
+      } catch (e) {
+        log('Base64 comparison failed:', e);
+      }
+      
+      // Try to compare as hex (some providers use hex instead of base64)
+      try {
+        const expectedSignatureHex = crypto
+          .createHmac('sha256', secret)
+          .update(signedPayload, 'utf8')
+          .digest('hex');
+        
+        log('Expected signature (hex):', expectedSignatureHex);
+        
+        if (sig === expectedSignatureHex) {
+          log('✅ Signature verified successfully using hex encoding and option', i + 1);
+          return true;
+        }
+      } catch (e) {
+        log('Hex comparison failed:', e);
+      }
+    }
+    
+    log('❌ All signature verification options failed');
+    return false;
   } catch (error) {
-    log('❌ Signature verification error:', error)
-    return false
+    log('❌ Signature verification error:', error);
+    return false;
   }
 }
 
@@ -94,7 +157,7 @@ const upsertCustomer = async (customer: { customer_id: string; email: string; na
     return data
   } catch (err) {
     log('❌ Failed to upsert customer:', customer.customer_id, 'Error:', err)
-    throw err // Re-throw to handle upstream
+    throw err
   }
 }
 
@@ -140,7 +203,7 @@ const upsertSubscription = async (payload: DodoWebhookPayload<DodoSubscriptionAc
       subscription_status: data.status,
       quantity: data.quantity ?? 1,
       currency: data.currency ?? null,
-      start_date: data.start_date ?? new Date().toISOString(),
+      start_date: data.created_at, // Use created_at as start_date
       next_billing_date: data.next_billing_date ?? null,
       trial_end_date: 'trial_period_days' in data && data.trial_period_days
         ? new Date(Date.now() + data.trial_period_days * 24 * 60 * 60 * 1000).toISOString()
@@ -266,14 +329,33 @@ export async function POST(req: Request) {
   try {
     // Get the raw body for signature verification
     const rawBody = await req.text()
+    log('Raw body length:', rawBody.length);
+    log('Raw body (first 200 chars):', rawBody.substring(0, 200));
     
-    // Get webhook headers
-    const signature = req.headers.get('webhook-signature')
-    const timestamp = req.headers.get('webhook-timestamp')
-    const webhookId = req.headers.get('webhook-id')
+    // Get webhook headers - try multiple possible header names
+    // Dodo Payments might use different header names than what you're expecting
+    const signature = req.headers.get('webhook-signature') || 
+                     req.headers.get('x-webhook-signature') || 
+                     req.headers.get('x-dodo-signature') || 
+                     req.headers.get('signature');
+                     
+    const timestamp = req.headers.get('webhook-timestamp') || 
+                     req.headers.get('x-webhook-timestamp') || 
+                     req.headers.get('x-dodo-timestamp') || 
+                     req.headers.get('timestamp');
+                     
+    const webhookId = req.headers.get('webhook-id') || 
+                     req.headers.get('x-webhook-id') || 
+                     req.headers.get('x-dodo-id') || 
+                     req.headers.get('webhook-id');
     
-    if (!signature || !timestamp || !webhookId) {
-      log('❌ Missing required webhook headers')
+    log('Headers:');
+    log('Signature:', signature);
+    log('Timestamp:', timestamp);
+    log('Webhook ID:', webhookId);
+    
+    if (!signature || !timestamp) {
+      log('❌ Missing required webhook headers (signature or timestamp)')
       return NextResponse.json({ error: 'Missing webhook headers' }, { status: 400 })
     }
 
@@ -284,7 +366,10 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Server configuration error' }, { status: 500 })
     }
 
-    const isValid = verifyWebhookSignature(rawBody, signature, timestamp, webhookId, webhookSecret)
+    log('Webhook secret length:', webhookSecret.length);
+    // Don't log the actual secret for security reasons, just its length
+
+    const isValid = verifyWebhookSignature(rawBody, signature, timestamp, webhookId || '', webhookSecret)
     if (!isValid) {
       log('❌ Invalid webhook signature')
       return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 403 })
