@@ -36,49 +36,37 @@ export async function cancelSubscription(
   subscriptionId: string,
   option: CancelOption = "next_billing"
 ): Promise<CancelSubscriptionResult> {
-  if (!subscriptionId) {
-    return { success: false, error: "Subscription ID is required" };
-  }
+  if (!subscriptionId) return { success: false, error: "Subscription ID is required" };
 
-  // Use service client (server-only) — must use SUPABASE_SERVICE_ROLE_KEY
   const supabase = createServiceClient();
 
   try {
-    // Call Dodo API
+    // ✅ Correct payload type
     const dodoResponse: DodoUpdateResponse = await dodoClient.updateSubscription(subscriptionId, {
       cancel_at_next_billing_date: option !== "immediately",
     });
 
-    console.log("Dodo response (raw):", JSON.stringify(dodoResponse, null, 2));
+    console.log("Dodo API response:", JSON.stringify(dodoResponse, null, 2));
 
     const subscriptionData = extractSubscriptionData(dodoResponse);
-
     if (!subscriptionData?.subscription_id) {
-      throw new Error(`Invalid response from payment provider: ${JSON.stringify(dodoResponse)}`);
+      throw new Error(`Invalid response from Dodo: ${JSON.stringify(dodoResponse)}`);
     }
-
-    const supabaseUpdate: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-      subscription_status: option === "immediately" ? "canceled" : "active",
-      cancel_at_next_billing_date: option !== "immediately", // boolean
-    };
 
     const { error } = await supabase
       .from("subscriptions")
-      .update(supabaseUpdate)
+      .update({
+        subscription_status: option === "immediately" ? "canceled" : "active",
+        cancel_at_next_billing_date: option !== "immediately",
+        updated_at: new Date().toISOString(),
+      })
       .eq("subscription_id", subscriptionData.subscription_id);
 
-    if (error) {
-      throw new Error(`Supabase update failed: ${error.message}`);
-    }
+    if (error) throw new Error(`Supabase update failed: ${error.message}`);
 
-    console.log(`Subscription ${subscriptionData.subscription_id} updated successfully in Supabase`);
     return { success: true };
   } catch (err: unknown) {
     console.error("Cancel subscription error:", err);
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : "Unknown error occurred",
-    };
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error occurred" };
   }
 }
