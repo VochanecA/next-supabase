@@ -32,6 +32,9 @@ function extractSubscriptionData(response: DodoUpdateResponse): DodoSubscription
   return null;
 }
 
+/**
+ * Cancels subscription in Dodo and updates Supabase
+ */
 export async function cancelSubscription(
   subscriptionId: string,
   option: CancelOption = "next_billing"
@@ -41,10 +44,13 @@ export async function cancelSubscription(
   const supabase = createServiceClient();
 
   try {
-    // ✅ Correct payload type
-    const dodoResponse: DodoUpdateResponse = await dodoClient.updateSubscription(subscriptionId, {
-      cancel_at_next_billing_date: option !== "immediately",
-    });
+    // Prepare payload based on option
+    const payload =
+      option === "immediately"
+        ? { status: "canceled" } // Immediate cancellation
+        : { cancel_at_next_billing_date: true }; // Cancel at next billing
+
+    const dodoResponse: DodoUpdateResponse = await dodoClient.updateSubscription(subscriptionId, payload);
 
     console.log("Dodo API response:", JSON.stringify(dodoResponse, null, 2));
 
@@ -53,6 +59,7 @@ export async function cancelSubscription(
       throw new Error(`Invalid response from Dodo: ${JSON.stringify(dodoResponse)}`);
     }
 
+    // Update Supabase only if Dodo API succeeded
     const { error } = await supabase
       .from("subscriptions")
       .update({
