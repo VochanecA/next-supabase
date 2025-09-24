@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ProtectedAccount } from "./protected-account";
 import {
   CreditCardIcon,
@@ -14,6 +14,7 @@ import {
 import CustomerPortalButton from "./CustomerPortalButton";
 import { CancelSubscriptionButton } from "@/components/CancelSubscriptionButton";
 import ManagePlanButton from "./ManagePlanButton";
+import { createClient } from "@/lib/supabase/client"; // browser client
 
 interface Product {
   product_id: string;
@@ -55,19 +56,60 @@ interface UserClaims {
 
 interface Props {
   user: UserClaims;
-  subscriptions: Subscription[];
-  transactions: Transaction[];
-  customerId?: string;
 }
 
-export const ProtectedDashboard: React.FC<Props> = ({
-  user,
-  subscriptions: initialSubscriptions,
-  transactions,
-  customerId,
-}) => {
+export const ProtectedDashboard: React.FC<Props> = ({ user }) => {
   const username = user.email?.split("@")[0] ?? "User";
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(initialSubscriptions);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [customerId] = useState<string | null>(null);
+
+  const supabase = createClient();
+
+  // Fetch customer, subscriptions, and transactions by email
+useEffect(() => {
+  const fetchData = async () => {
+    if (!user.email) return;
+
+    try {
+      // 1️⃣ Get the Supabase customer record by email
+      const { data: customerData, error: customerError } = await supabase
+        .from("customers")
+        .select("*")
+        .eq("email", user.email)
+        .single();
+
+      if (customerError || !customerData) {
+        console.error("Failed to fetch customer:", customerError);
+        return;
+      }
+
+      // 2️⃣ Fetch subscriptions for this customer
+      const { data: subsData, error: subsError } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("customer_id", customerData.customer_id); // use normalized customer_id
+
+      if (subsError) console.error("Failed to fetch subscriptions:", subsError);
+      else setSubscriptions(subsData ?? []);
+
+      // 3️⃣ Fetch transactions for this customer
+      const { data: txData, error: txError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("customer_id", customerData.customer_id);
+
+      if (txError) console.error("Failed to fetch transactions:", txError);
+      else setTransactions(txData ?? []);
+
+    } catch (err) {
+      console.error("Error fetching dashboard data:", err);
+    }
+  };
+
+  fetchData();
+}, [user.email]);
+
 
   // Handler to update subscription locally after cancel
   const handleSubscriptionCancelled = (subscriptionId: string) => {
@@ -183,9 +225,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 truncate">ID: {sub.subscription_id}</p>
                     <div className="mt-2">
                       <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(
-                          sub.subscription_status,
-                        )}`}
+                        className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(sub.subscription_status)}`}
                       >
                         {sub.subscription_status}
                       </span>
@@ -200,14 +240,11 @@ export const ProtectedDashboard: React.FC<Props> = ({
                       {sub.trial_end_date && (
                         <p>
                           Trial ends:{" "}
-                          <span className="font-medium text-orange-500 dark:text-orange-400">
-                            {formatDate(sub.trial_end_date)}
-                          </span>
+                          <span className="font-medium text-orange-500 dark:text-orange-400">{formatDate(sub.trial_end_date)}</span>
                         </p>
                       )}
                     </div>
 
-                    {/* Cancel button */}
                     {sub.subscription_status !== "cancelled" && (
                       <div className="mt-3">
                         <CancelSubscriptionButton
@@ -247,9 +284,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
                     <div className="flex justify-between items-center mb-1">
                       <span className="text-lg font-bold">{formatAmount(tx.amount, tx.currency)}</span>
                       <span
-                        className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(
-                          tx.status,
-                        )}`}
+                        className={`text-xs font-medium px-2 py-1 rounded-full capitalize ${getStatusColor(tx.status)}`}
                       >
                         {tx.status}
                       </span>
@@ -299,9 +334,7 @@ export const ProtectedDashboard: React.FC<Props> = ({
               <DownloadIcon className="w-5 h-5 mr-2" /> Download Invoice
             </button>
 
-            {subscriptions.length > 0 && (
-              <ManagePlanButton subscriptions={subscriptions} />
-            )}
+            {subscriptions.length > 0 && <ManagePlanButton subscriptions={subscriptions} />}
 
             {subscriptions.some((sub) => sub.subscription_status !== "cancelled") && (
               <CancelSubscriptionButton
