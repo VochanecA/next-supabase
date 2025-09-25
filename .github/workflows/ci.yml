@@ -1,0 +1,56 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20]
+
+    steps:
+      # 1️⃣ Checkout the repository
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # 2️⃣ Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+
+      # 3️⃣ Install dependencies
+      - name: Install dependencies
+        run: npm ci
+
+      # 4️⃣ Run ESLint and auto-fix
+      - name: Lint & Auto-fix
+        run: |
+          npm run lint:fix
+          git diff --exit-code || (echo "Lint fixed some files. Please commit changes." && exit 1)
+
+      # 5️⃣ Detect unused files/components
+      - name: Check for unused files
+        run: |
+          npm run check-unused > unused.txt || true
+          if [ -s unused.txt ]; then
+            echo "🚨 Unused files detected:"
+            cat unused.txt
+            exit 1
+          else
+            echo "✅ No unused files detected."
+          fi
+
+      # 6️⃣ Run tests
+      - name: Run tests
+        run: npm run test:ci
+
+      # 7️⃣ Build Next.js
+      - name: Build Next.js app
+        run: npm run build
